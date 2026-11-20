@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.14";    // Programme version, see change log at end
+String version = "1.15";    // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -1650,4 +1650,9 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
   Version 1.14
   1. Display today's remaining and tomorrow's events stacked under "Heute" and "Morgen"
      labels inside each calendar card, passing local NTP datetime to the Apps Script bridge
+
+  Version 1.15
+  1. Move Wi-Fi signal strength and battery status inline, right-aligned in the top bar
+  2. Compress the astronomy card into a 3-column horizontal layout below Date/Time
+     with sunrise/sunset icons, smaller 40px moon phase disc, and smaller phase text
 */

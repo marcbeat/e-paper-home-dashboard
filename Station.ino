@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.10";    // Programme version, see change log at end
+String version = "1.11";    // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -285,7 +285,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
 void DisplayGeneralInfoSection() {
   u8g2Fonts.setFont(u8g2_font_helvB14_tf);
   drawString(12, 20, "Version " + version + " (" + BUILD_GIT_SHA + ")", LEFT); // Programme version
-  drawString(SCREEN_WIDTH / 2, 20, City, CENTER);
+  drawString(SCREEN_WIDTH / 2, 20,  title + " - " + City, CENTER);
   // Uncomment the next line if the display of IP- and MAC-Adddress is wanted
   //drawString(SCREEN_WIDTH - 150, 20, "IP=" + LocalIP + ",  MAC=" + WiFi.macAddress() ,RIGHT);
   display.drawLine(5, 40, SCREEN_WIDTH - 8, 40, GxEPD_BLACK);
@@ -1484,4 +1484,7 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
       time fetcher (src/travel.h)
    2. Added side-by-side Fuel Prices and Travel Times cards to the right of
       the Date/Time and Wi-Fi/Power status section
+
+  Version 1.11
+  1. Integrated display of the title at the top of the screen alongside the city name
 */

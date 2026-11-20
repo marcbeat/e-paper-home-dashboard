@@ -1,6 +1,9 @@
 // Define if you want a instant update on startup
 const bool DebugDisplayUpdate = false;
 
+// Title shown at top of the display
+String title = "YourTitle";
+
 // Change to your WiFi credentials
 const char* ssid     = "your_wifi_ssid";         // WiFi SSID to connect to
 const char* password = "your_wifi_password";     // WiFi password needed for the SSID

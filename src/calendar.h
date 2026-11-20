@@ -13,10 +13,10 @@ struct CalendarEvent {
   bool allDay;
 };
 
-extern CalendarEvent pietEvents[MAX_CALENDAR_EVENTS];
-extern CalendarEvent natiEvents[MAX_CALENDAR_EVENTS];
-extern int pietEventCount;
-extern int natiEventCount;
+extern CalendarEvent cal1Events[MAX_CALENDAR_EVENTS];
+extern CalendarEvent cal2Events[MAX_CALENDAR_EVENTS];
+extern int cal1EventCount;
+extern int cal2EventCount;
 
 /** Percent-encode a query parameter value for HTTP GET requests. */
 String UrlEncode(const String& value) {
@@ -49,7 +49,7 @@ void PopulateEventList(JsonArrayConst arr, CalendarEvent out[], int& outCount) {
   }
 }
 
-/** Parse the Apps Script bridge JSON payload into pietEvents and natiEvents. */
+/** Parse the Apps Script bridge JSON payload into cal1Events and cal2Events. */
 bool DecodeCalendarJson(const String& payload, bool print) {
   JsonDocument doc;
   DeserializationError error = deserializeJson(doc, payload);
@@ -62,23 +62,23 @@ bool DecodeCalendarJson(const String& payload, bool print) {
     Serial.println("Calendar bridge error: " + String(doc["error"].as<const char*>()));
     return false;
   }
-  PopulateEventList(doc["piet"].as<JsonArrayConst>(), pietEvents, pietEventCount);
-  PopulateEventList(doc["nati"].as<JsonArrayConst>(), natiEvents, natiEventCount);
+  PopulateEventList(doc["cal1"].as<JsonArrayConst>(), cal1Events, cal1EventCount);
+  PopulateEventList(doc["cal2"].as<JsonArrayConst>(), cal2Events, cal2EventCount);
   if (print) {
-    Serial.printf("Decoded calendar events: Piet=%d, Nati=%d\n", pietEventCount, natiEventCount);
+    Serial.printf("Decoded calendar events: cal1=%d, cal2=%d\n", cal1EventCount, cal2EventCount);
   }
   return true;
 }
 
-/** Fetch today's events for Piet and Nati from the configured Google Apps Script bridge. */
+/** Fetch today's events for cal1 and cal2 from the configured Google Apps Script bridge. */
 bool ReceiveTodayCalendars(bool print) {
   if (strlen(calendarBridgeUrl) == 0) return false;
 
   String url = String(calendarBridgeUrl);
   url += (url.indexOf('?') >= 0) ? '&' : '?';
   url += "token=" + UrlEncode(calendarBridgeToken);
-  url += "&piet=" + UrlEncode(calendarIdPiet);
-  url += "&nati=" + UrlEncode(calendarIdNati);
+  url += "&cal1=" + UrlEncode(calendarId1);
+  url += "&cal2=" + UrlEncode(calendarId2);
 
   if (print) Serial.println("Rx today calendars...");
   WiFiClientSecure secureClient;

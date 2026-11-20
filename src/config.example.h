@@ -48,5 +48,5 @@ int  daylightOffset_sec = 3600; // In the UK DST is +1hr or 3600-secs, other cou
 // See docs/superpowers/plans/2026-11-20-google-calendar.md for the deployment script and setup steps.
 const char* calendarBridgeUrl   = ""; // Deployed Google Apps Script Web App URL, e.g. "https://script.google.com/macros/s/AKfy.../exec"
 const char* calendarBridgeToken = ""; // Shared secret token validated by the Apps Script (?token=...) so the URL cannot be queried publicly
-const char* calendarIdPiet      = ""; // Google Calendar ID for Piet (e.g. "primary", "piet@gmail.com", or "...@group.calendar.google.com")
-const char* calendarIdNati      = ""; // Google Calendar ID for Nati (must be shared read-only with the Google account running the Apps Script)
+const char* calendarId1      = ""; // Google Calendar ID for cal1 (e.g. "primary", "cal1@gmail.com", or "...@group.calendar.google.com")
+const char* calendarId2      = ""; // Google Calendar ID for cal2 (must be shared read-only with the Google account running the Apps Script)

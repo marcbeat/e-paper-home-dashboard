@@ -131,10 +131,10 @@ float temperature_readings[max_readings] = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
-CalendarEvent pietEvents[MAX_CALENDAR_EVENTS];
-CalendarEvent natiEvents[MAX_CALENDAR_EVENTS];
-int pietEventCount = 0;
-int natiEventCount = 0;
+CalendarEvent cal1Events[MAX_CALENDAR_EVENTS];
+CalendarEvent cal2Events[MAX_CALENDAR_EVENTS];
+int cal1EventCount = 0;
+int cal2EventCount = 0;
 
 long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
@@ -253,7 +253,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
     DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
     DisplayStatusSection(statusX, 242, wifi_signal); // Wi-Fi signal strength and Battery voltage to the right of date/time
     DisplayForecastSection(372, 450);            // 3hr forecast boxes and right-aligned 3-day charts
-    DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today's events for Piet and Nati
+    DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today's events for cal1 and cal2
   }
   while (display.nextPage());
 }
@@ -658,8 +658,8 @@ void DisplayCalendarSection(int x, int y, int width, int height) {
   const int colH = height - cardTopOffset;
   const bool configured = (strlen(calendarBridgeUrl) > 0);
 
-  DrawCalendarListCard(x, y + cardTopOffset, colW, colH, "Piet", pietEvents, pietEventCount, configured);
-  DrawCalendarListCard(x + colW + colGap, y + cardTopOffset, colW, colH, "Nati", natiEvents, natiEventCount, configured);
+  DrawCalendarListCard(x, y + cardTopOffset, colW, colH, "Piet", cal1Events, cal1EventCount, configured);
+  DrawCalendarListCard(x + colW + colGap, y + cardTopOffset, colW, colH, "Nati", cal2Events, cal2EventCount, configured);
 }
 //#############################################################################################
 int iconScale(uint8_t IconSize, int& linesize) {
@@ -1312,8 +1312,8 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
    Version 1.7
    1. Removed humidity and pressure charts from the 3-day forecast, moved
       temperature and precipitation charts to the right, and centered headline
-   2. Added bottom-left "Heutige Termine" section with side-by-side "Piet"
-      and "Nati" event list cards
+   2. Added bottom-left "Heutige Termine" section with side-by-side "cal1"
+      and "cal2" event list cards
 
    Version 1.8
    1. Added Google Calendar fetch/decode via Apps Script bridge (src/calendar.h)

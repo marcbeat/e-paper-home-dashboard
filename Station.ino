@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.7";     // Programme version, see change log at end
+String version = "1.8";     // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -117,6 +117,7 @@ bool DecodeOneCallWeather(WiFiClient& json, bool print);
 #define max_readings 24
 
 #include "common.h"
+#include "calendar.h"
 #include <rom/rtc.h>
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
@@ -130,12 +131,6 @@ float temperature_readings[max_readings] = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
-#define MAX_CALENDAR_EVENTS 10
-struct CalendarEvent {
-  String time;
-  String title;
-  bool allDay;
-};
 CalendarEvent pietEvents[MAX_CALENDAR_EVENTS];
 CalendarEvent natiEvents[MAX_CALENDAR_EVENTS];
 int pietEventCount = 0;
@@ -172,6 +167,13 @@ void setup() {
         Attempts++;
       }
       if (RxWeather) { // Only if received both Weather or Forecast proceed
+        if (strlen(calendarBridgeUrl) > 0) {
+          bool RxCalendar = false;
+          for (byte calAttempt = 1; !RxCalendar && calAttempt <= 2; calAttempt++) {
+            RxCalendar = ReceiveTodayCalendars(true);
+          }
+          if (!RxCalendar) AddToEventLog("*** Failed to Rx Calendar data ***");
+        }
         StopWiFi(); // Reduces power consumption
         DisplayWeather();
       }
@@ -1312,4 +1314,8 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
       temperature and precipitation charts to the right, and centered headline
    2. Added bottom-left "Heutige Termine" section with side-by-side "Piet"
       and "Nati" event list cards
+
+   Version 1.8
+   1. Added Google Calendar fetch/decode via Apps Script bridge (src/calendar.h)
+      and wired ReceiveTodayCalendars() into setup()
 */

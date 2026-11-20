@@ -8,6 +8,10 @@
 
 #define MAX_TRAVEL_DESTS 2
 
+static_assert(sizeof(travelDestNames) / sizeof(travelDestNames[0]) >= MAX_TRAVEL_DESTS, "travelDestNames too small");
+static_assert(sizeof(travelDestLats) / sizeof(travelDestLats[0]) >= MAX_TRAVEL_DESTS, "travelDestLats too small");
+static_assert(sizeof(travelDestLons) / sizeof(travelDestLons[0]) >= MAX_TRAVEL_DESTS, "travelDestLons too small");
+
 struct TravelRouteData {
   String name;
   bool configured;
@@ -17,15 +21,21 @@ struct TravelRouteData {
 };
 
 extern TravelRouteData travelRoutes[MAX_TRAVEL_DESTS];
+String UrlEncode(const String& value);
+
+/** Return true when destination slot index has non-empty latitude and longitude. */
+inline bool IsTravelDestConfigured(int index) {
+  if (index < 0 || index >= MAX_TRAVEL_DESTS) return false;
+  return (travelDestLats[index] != nullptr && strlen(travelDestLats[index]) > 0 &&
+          travelDestLons[index] != nullptr && strlen(travelDestLons[index]) > 0);
+}
 
 /** Reset all travel route slots to their configured defaults and -1 sentinel values. */
 inline void ResetTravelRoutes() {
   for (int i = 0; i < MAX_TRAVEL_DESTS; i++) {
     bool hasName = (travelDestNames[i] != nullptr && strlen(travelDestNames[i]) > 0);
-    bool hasLat  = (travelDestLats[i]  != nullptr && strlen(travelDestLats[i])  > 0);
-    bool hasLon  = (travelDestLons[i]  != nullptr && strlen(travelDestLons[i])  > 0);
     travelRoutes[i].name        = hasName ? String(travelDestNames[i]) : ("Ziel " + String(i + 1));
-    travelRoutes[i].configured  = (hasLat && hasLon);
+    travelRoutes[i].configured  = IsTravelDestConfigured(i);
     travelRoutes[i].valid       = false;
     travelRoutes[i].durationMin = -1;
     travelRoutes[i].delayMin    = -1;
@@ -37,8 +47,7 @@ inline bool HasConfiguredTravelDests() {
   if (mapboxAccessToken == nullptr || strlen(mapboxAccessToken) == 0) return false;
   if (LAT.length() == 0 || LON.length() == 0) return false;
   for (int i = 0; i < MAX_TRAVEL_DESTS; i++) {
-    if (travelDestLats[i] != nullptr && strlen(travelDestLats[i]) > 0 &&
-        travelDestLons[i] != nullptr && strlen(travelDestLons[i]) > 0) {
+    if (IsTravelDestConfigured(i)) {
       return true;
     }
   }
@@ -76,12 +85,14 @@ inline bool DecodeTravelJson(const String& payload, int index, bool print) {
 
   travelRoutes[index].durationMin = (int)round(durSec / 60.0);
 
+  travelRoutes[index].delayMin = -1;
   JsonVariantConst typVar = route["duration_typical"];
   if (typVar.is<float>() || typVar.is<double>() || typVar.is<long>()) {
-    int delta = (int)round((durSec - typVar.as<double>()) / 60.0);
-    travelRoutes[index].delayMin = (delta > 0) ? delta : 0;
-  } else {
-    travelRoutes[index].delayMin = -1;
+    double typSec = typVar.as<double>();
+    if (typSec > 0.0) {
+      int delta = (int)round((durSec - typSec) / 60.0);
+      travelRoutes[index].delayMin = (delta > 0) ? delta : 0;
+    }
   }
 
   travelRoutes[index].valid = true;

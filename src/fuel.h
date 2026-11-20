@@ -7,6 +7,9 @@
 
 #define MAX_FUEL_STATIONS 3
 
+static_assert(sizeof(fuelStationIds) / sizeof(fuelStationIds[0]) >= MAX_FUEL_STATIONS, "fuelStationIds too small");
+static_assert(sizeof(fuelStationNames) / sizeof(fuelStationNames[0]) >= MAX_FUEL_STATIONS, "fuelStationNames too small");
+
 struct FuelStationData {
   String name;
   bool configured;
@@ -18,6 +21,7 @@ struct FuelStationData {
 };
 
 extern FuelStationData fuelStations[MAX_FUEL_STATIONS];
+String UrlEncode(const String& value);
 
 /** Reset all fuel station slots to their configured defaults and -1.0f sentinel prices. */
 inline void ResetFuelStations() {
@@ -82,7 +86,7 @@ inline bool DecodeFuelJson(const String& payload, bool print) {
     JsonObjectConst entry = prices[fuelStationIds[i]].as<JsonObjectConst>();
     if (!entry.isNull()) {
       fuelStations[i].valid  = true;
-      fuelStations[i].isOpen = (String(entry["status"] | "") == "open");
+      fuelStations[i].isOpen = (strcmp(entry["status"] | "", "open") == 0);
       fuelStations[i].e5     = ExtractFuelPrice(entry["e5"]);
       fuelStations[i].e10    = ExtractFuelPrice(entry["e10"]);
       fuelStations[i].diesel = ExtractFuelPrice(entry["diesel"]);
@@ -93,7 +97,7 @@ inline bool DecodeFuelJson(const String& payload, bool print) {
   if (print) {
     Serial.printf("Decoded fuel prices: %d station(s)\n", validCount);
   }
-  return true;
+  return validCount > 0;
 }
 
 /** Fetch live fuel prices for configured stations from Tankerkoenig prices.php. */

@@ -733,12 +733,13 @@ void DisplayFuelSection(int x, int y, int width, int height) {
   }
 
   const int priceAreaLeft = colRight[0] - colW[0];
-  const int nameMaxW = max(60, priceAreaLeft - colGap - (x + padX));
+  const int nameMaxW = max(0, priceAreaLeft - colGap - (x + padX));
 
   u8g2Fonts.setFont(u8g2_font_helvB14_te);
+  int row = 0;
   for (int i = 0; i < MAX_FUEL_STATIONS; i++) {
     if (!fuelStations[i].configured) continue;
-    int rowY = y + 92 + i * 36;
+    int rowY = y + 92 + row * 36;
     u8g2Fonts.setCursor(x + padX, rowY);
     u8g2Fonts.print(TruncateTextToWidth(fuelStations[i].name, nameMaxW));
 
@@ -755,6 +756,7 @@ void DisplayFuelSection(int x, int y, int width, int height) {
         DrawRightAlignedText(colRight[c], rowY, label);
       }
     }
+    row++;
   }
 }
 //#############################################################################################
@@ -777,16 +779,17 @@ void DisplayTravelSection(int x, int y, int width, int height) {
     return;
   }
 
+  int row = 0;
   for (int i = 0; i < MAX_TRAVEL_DESTS; i++) {
     if (!travelRoutes[i].configured) continue;
-    int blockY = y + 66 + i * 74;
+    int blockY = y + 66 + row * 74;
 
     u8g2Fonts.setFont(u8g2_font_helvB14_te);
     String durStr = travelRoutes[i].valid
                       ? FormatTravelDuration(travelRoutes[i].durationMin)
                       : String("--");
     int durW = u8g2Fonts.getUTF8Width(durStr.c_str());
-    int nameMaxW = max(60, width - padX * 2 - durW - 12);
+    int nameMaxW = max(0, width - padX * 2 - durW - 12);
 
     u8g2Fonts.setCursor(x + padX, blockY);
     u8g2Fonts.print(TruncateTextToWidth(travelRoutes[i].name, nameMaxW));
@@ -810,6 +813,7 @@ void DisplayTravelSection(int x, int y, int width, int height) {
       u8g2Fonts.setCursor(x + padX, blockY + 24);
       u8g2Fonts.print(TruncateTextToWidth(trafficStr, width - padX * 2));
     }
+    row++;
   }
 }
 //#############################################################################################

@@ -85,4 +85,3 @@ const String TXT_TRAFFIC_DELAY = "delay";
 const String TXT_TRAFFIC_HEAVY = "Heavy traffic";
 const String TXT_NOT_CONF      = "Not configured";
 
-

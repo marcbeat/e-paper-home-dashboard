@@ -120,6 +120,7 @@ bool DecodeOneCallWeather(WiFiClient& json, bool print);
 #include "calendar.h"
 #include "fuel.h"
 #include "travel.h"
+#include "nina.h"
 #include <rom/rtc.h>
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
@@ -137,6 +138,7 @@ CalendarData cal1Data;
 CalendarData cal2Data;
 FuelStationData fuelStations[MAX_FUEL_STATIONS];
 TravelRouteData travelRoutes[MAX_TRAVEL_DESTS];
+NinaData ninaData;
 
 long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
@@ -187,6 +189,13 @@ void setup() {
           if (!ReceiveTravelTimes(true)) {
             AddToEventLog("*** Failed to Rx Travel times ***");
           }
+        }
+        if (HasConfiguredNina()) {
+          bool RxNina = false;
+          for (byte ninaAttempt = 1; !RxNina && ninaAttempt <= 2; ninaAttempt++) {
+            RxNina = ReceiveNinaWarnings(true);
+          }
+          if (!RxNina) AddToEventLog("*** Failed to Rx NINA warnings ***");
         }
         StopWiFi(); // Reduces power consumption
         DisplayWeather();

@@ -66,3 +66,7 @@ const char* travelDestNames[2]  = { "", "" }; // Short destination labels (e.g. 
 const char* travelDestLats[2]   = { "", "" }; // Destination latitudes
 const char* travelDestLons[2]   = { "", "" }; // Destination longitudes
 
+// NINA civil protection & weather warnings (https://warnung.bund.de/api31/dashboard/{ARS}.json)
+// Regional keys (ARS): https://www.dcat-ap.de/def/politicalGeocoding/regionalKey/
+const char* ninaApiArs = ""; // 12-digit Amtlicher Regionalschluessel (Kreis level, e.g. "059130000000")
+

@@ -263,13 +263,14 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
   int cardsTotalW = 1296 - cardsX;
   int fuelW = (cardsTotalW - cardsGap) * 55 / 100;
   int travelW = cardsTotalW - cardsGap - fuelW;
+  int astroW = min(365, cardsX - 17);
 
   display.firstPage();
   do
   {
     DisplayGeneralInfoSection();                 // Top line and date/time below top row
     DisplayDisplayWindSection(5, 40, WxConditions[0].Winddir, WxConditions[0].Windspeed, 214, 190);
-    DisplayAstronomySection(5, 430);             // Astronomy section Sun rise/set, Moon phase and Moon icon
+    DisplayAstronomySection(5, 332, astroW, 106); // Compact horizontal sunrise, sunset and moon card
     DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
     DisplayFuelSection(cardsX, cardsY, fuelW, cardsH);
     DisplayTravelSection(cardsX + fuelW + cardsGap, cardsY, travelW, cardsH);
@@ -515,23 +516,104 @@ void DisplayPrecipitationSection(int x, int y, int pwidth, int pdepth) {
   DrawCenteredText(cardCenterX, y + 168, TXT_PRECIP_WINDOW);
 }
 //#########################################################################################
-void DisplayAstronomySection(int x, int y) {
-  const int dy = 35; // box is 180 high instead of 110, centre the content
-  display.drawRect(x, y + 20, 365, 180, GxEPD_BLACK);
-  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
-  drawString(x + 14, y + 54 + dy, ConvertUnixTime(WxConditions[0].Sunrise + WxConditions[0].Timezone).substring(0, 5) + " " + TXT_SUNRISE, LEFT);
-  drawString(x + 14, y + 79 + dy, ConvertUnixTime(WxConditions[0].Sunset + WxConditions[0].Timezone).substring(0, 5) + " " + TXT_SUNSET, LEFT);
-  time_t now = time(NULL);
-  struct tm * now_utc  = gmtime(&now);
-  const int day_utc = now_utc->tm_mday;
-  const int month_utc = now_utc->tm_mon + 1;
-  const int year_utc = now_utc->tm_year + 1900;
-  drawString(x + 14, y + 104 + dy, MoonPhase(day_utc, month_utc, year_utc, Hemisphere), LEFT);
-  DrawMoon(x + 225, y + 5 + dy, day_utc, month_utc, year_utc, Hemisphere);
+/** Draw a horizon + sun dome icon with an upward (rising=true) or downward (rising=false) arrow. */
+void DrawSunHorizonIcon(int centerX, int centerY, bool rising) {
+  const int r = 9;
+  const int horizonY = centerY + 6;
+  const int arrowTop = horizonY - r - 14;
+
+  // Radiating rays on upper semicircle (leaving top vertical slot clear for the arrow)
+  const int rayAnglesDeg[4] = { -150, -120, -60, -30 };
+  for (int i = 0; i < 4; i++) {
+    float rad = rayAnglesDeg[i] * PI / 180.0f;
+    int x1 = round(centerX + (r + 3) * cos(rad));
+    int y1 = round(horizonY + (r + 3) * sin(rad));
+    int x2 = round(centerX + (r + 6) * cos(rad));
+    int y2 = round(horizonY + (r + 6) * sin(rad));
+    display.drawLine(x1, y1, x2, y2, GxEPD_BLACK);
+  }
+
+  // Sun dome clipped cleanly at the horizon
+  display.drawCircle(centerX, horizonY, r, GxEPD_BLACK);
+  display.drawCircle(centerX, horizonY, r - 1, GxEPD_BLACK);
+  display.fillRect(centerX - r - 2, horizonY + 1, (r + 2) * 2, r + 2, GxEPD_WHITE);
+  display.fillRect(centerX - 17, horizonY, 34, 2, GxEPD_BLACK);
+
+  // Direction arrow above the sun dome
+  if (rising) {
+    display.fillTriangle(centerX, arrowTop, centerX - 5, arrowTop + 5, centerX + 5, arrowTop + 5, GxEPD_BLACK);
+    display.fillRect(centerX - 1, arrowTop + 5, 2, 6, GxEPD_BLACK);
+  } else {
+    display.fillRect(centerX - 1, arrowTop, 2, 6, GxEPD_BLACK);
+    display.fillTriangle(centerX, arrowTop + 11, centerX - 5, arrowTop + 6, centerX + 5, arrowTop + 6, GxEPD_BLACK);
+  }
 }
 //#########################################################################################
-void DrawMoon(int x, int y, int dd, int mm, int yy, String hemisphere) {
-  const int diameter = 75;
+void DrawSunriseIcon(int centerX, int centerY) {
+  DrawSunHorizonIcon(centerX, centerY, true);
+}
+//#########################################################################################
+void DrawSunsetIcon(int centerX, int centerY) {
+  DrawSunHorizonIcon(centerX, centerY, false);
+}
+//#########################################################################################
+void DisplayAstronomySection(int x, int y, int width, int height) {
+  display.drawRect(x, y, width, height, GxEPD_BLACK);
+
+  const int col1W = width * 27 / 100;
+  const int col2W = width * 27 / 100;
+  const int col3W = width - col1W - col2W;
+  display.drawLine(x + col1W, y + 8, x + col1W, y + height - 8, GxEPD_BLACK);
+  display.drawLine(x + col1W + col2W, y + 8, x + col1W + col2W, y + height - 8, GxEPD_BLACK);
+
+  const int col1X = x + col1W / 2;
+  const int col2X = x + col1W + col2W / 2;
+  const int col3X = x + col1W + col2W + col3W / 2;
+
+  String sunriseStr = ConvertUnixTime(WxConditions[0].Sunrise + WxConditions[0].Timezone).substring(0, 5);
+  String sunsetStr  = ConvertUnixTime(WxConditions[0].Sunset  + WxConditions[0].Timezone).substring(0, 5);
+
+  DrawSunriseIcon(col1X, y + 38);
+  DrawSunsetIcon(col2X, y + 38);
+  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
+  DrawCenteredText(col1X, y + 84, sunriseStr);
+  DrawCenteredText(col2X, y + 84, sunsetStr);
+
+  time_t now = time(NULL);
+  struct tm * now_utc = gmtime(&now);
+  const int day_utc   = now_utc->tm_mday;
+  const int month_utc = now_utc->tm_mon + 1;
+  const int year_utc  = now_utc->tm_year + 1900;
+
+  const int moonDiameter = 40;
+  DrawMoon(col3X - moonDiameter, (y + 34) - moonDiameter, moonDiameter, day_utc, month_utc, year_utc, Hemisphere);
+
+  u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+  String phaseText = MoonPhase(day_utc, month_utc, year_utc, Hemisphere);
+  const int maxTextW = col3W - 10;
+  if (u8g2Fonts.getUTF8Width(phaseText.c_str()) <= maxTextW) {
+    DrawCenteredText(col3X, y + 84, phaseText);
+  } else {
+    int splitPos = -1;
+    for (int i = 0; i < (int)phaseText.length(); i++) {
+      if (phaseText[i] == ' ') {
+        if (u8g2Fonts.getUTF8Width(phaseText.substring(0, i).c_str()) <= maxTextW) splitPos = i;
+        else break;
+      }
+    }
+    if (splitPos > 0) {
+      String line1 = phaseText.substring(0, splitPos);
+      String line2 = phaseText.substring(splitPos + 1);
+      line2.trim();
+      DrawCenteredText(col3X, y + 76, line1);
+      DrawCenteredText(col3X, y + 92, TruncateTextToWidth(line2, maxTextW));
+    } else {
+      DrawCenteredText(col3X, y + 84, TruncateTextToWidth(phaseText, maxTextW));
+    }
+  }
+}
+//#########################################################################################
+void DrawMoon(int x, int y, int diameter, int dd, int mm, int yy, String hemisphere) {
   double Phase = NormalizedMoonPhase(dd, mm, yy);
   hemisphere.toLowerCase();
   if (hemisphere == "south") Phase = 1 - Phase;

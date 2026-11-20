@@ -69,3 +69,9 @@ const char* weekday_D[] = { "So", "Mo", "Di", "Mi", "Do", "Fr", "Sa" };
 
 //Month
 const char* month_M[] = { "Jan", "Feb", "Mär", "Apr", "Mai", "Jun", "Jul", "Aug", "Sep", "Okt", "Nov", "Dez" };
+
+//Calendar
+const String TXT_TODAY_EVENTS = "Heutige Termine";
+const String TXT_NO_EVENTS    = "Keine Termine";
+const String TXT_ALL_DAY      = "Ganzt.";
+const String TXT_CAL_NOT_CONF = "Nicht konfiguriert";

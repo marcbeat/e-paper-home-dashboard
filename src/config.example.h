@@ -43,3 +43,10 @@ int  daylightOffset_sec = 3600; // In the UK DST is +1hr or 3600-secs, other cou
 //const char* Timezone = "NZST-12NZDT,M9.5.0,M4.1.0/3";      // Auckland
 //const char* Timezone = "EET-2EEST,M3.5.5/0,M10.5.5/0";     // Asia
 //const char* Timezone = "ACST-9:30ACDT,M10.1.0,M4.1.0/3":   // Australia
+
+// Google Calendar integration (via Google Apps Script Web App bridge)
+// See docs/superpowers/plans/2026-11-20-google-calendar.md for the deployment script and setup steps.
+const char* calendarBridgeUrl   = ""; // Deployed Google Apps Script Web App URL, e.g. "https://script.google.com/macros/s/AKfy.../exec"
+const char* calendarBridgeToken = ""; // Shared secret token validated by the Apps Script (?token=...) so the URL cannot be queried publicly
+const char* calendarIdPiet      = ""; // Google Calendar ID for Piet (e.g. "primary", "piet@gmail.com", or "...@group.calendar.google.com")
+const char* calendarIdNati      = ""; // Google Calendar ID for Nati (must be shared read-only with the Google account running the Apps Script)

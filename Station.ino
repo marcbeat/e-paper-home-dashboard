@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.6";     // Programme version, see change log at end
+String version = "1.7";     // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -126,11 +126,20 @@ bool DecodeOneCallWeather(WiFiClient& json, bool print);
 #define barchart_on   true
 #define barchart_off  false
 
-float pressure_readings[max_readings]    = {0};
 float temperature_readings[max_readings] = {0};
-float humidity_readings[max_readings]    = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
+
+#define MAX_CALENDAR_EVENTS 10
+struct CalendarEvent {
+  String time;
+  String title;
+  bool allDay;
+};
+CalendarEvent pietEvents[MAX_CALENDAR_EVENTS];
+CalendarEvent natiEvents[MAX_CALENDAR_EVENTS];
+int pietEventCount = 0;
+int natiEventCount = 0;
 
 long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
@@ -241,7 +250,8 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
     DisplayAstronomySection(5, 430);             // Astronomy section Sun rise/set, Moon phase and Moon icon
     DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
     DisplayStatusSection(statusX, 242, wifi_signal); // Wi-Fi signal strength and Battery voltage to the right of date/time
-    DisplayForecastSection(372, 450);            // 3hr forecast boxes
+    DisplayForecastSection(372, 450);            // 3hr forecast boxes and right-aligned 3-day charts
+    DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today's events for Piet and Nati
   }
   while (display.nextPage());
 }
@@ -546,33 +556,108 @@ void DisplayForecastSection(int x, int y) {
     DisplayForecastWeather(x, y, f);
     f++;
   } while (f <= 7);
-  // Pre-load temporary arrays with with data - because C parses by reference
+  // Pre-load temporary arrays with data - because C parses by reference
   int r = 0;
   do {
-    if (Units == "I") pressure_readings[r] = WxForecast[r].Pressure * 0.02953;   else pressure_readings[r] = WxForecast[r].Pressure;
     if (Units == "I") rain_readings[r]     = WxForecast[r].Rainfall * 0.0393701; else rain_readings[r]     = WxForecast[r].Rainfall;
     if (Units == "I") snow_readings[r]     = WxForecast[r].Snowfall * 0.0393701; else snow_readings[r]     = WxForecast[r].Snowfall;
     temperature_readings[r] = WxForecast[r].Temperature;
-    humidity_readings[r]    = WxForecast[r].Humidity;
     r++;
   } while (r < max_readings);
-  
-  int gwidth = 260, gheight = 210;
-  int gx = (SCREEN_WIDTH - gwidth * 4) / 5 + 7;
-  int gy = (SCREEN_HEIGHT - gheight - 50);
-  int gap = gwidth + gx;
+
+  const int gwidth = 260, gheight = 210;
+  const int chartGap = 59;
+  const int chart2X = SCREEN_WIDTH - 19 - gwidth;
+  const int chart1X = chart2X - gwidth - chartGap;
+  const int gy = SCREEN_HEIGHT - gheight - 50;
+  const int titleCenterX = (chart1X + chart2X + gwidth) / 2;
+
   u8g2Fonts.setFont(u8g2_font_helvB18_tf);
-  drawString(SCREEN_WIDTH / 2 - 50, gy - 50, TXT_FORECAST_VALUES, CENTER); // Based on a graph height of 60
+  DrawCenteredText(titleCenterX, gy - 42, TXT_FORECAST_VALUES);
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
   // (x,y,width,height,MinValue, MaxValue, Title, Data Array, AutoScale, ChartMode)
-  DrawGraph(gx + 0 * gap, gy, gwidth, gheight, 900, 1050, Units == "M" ? TXT_PRESSURE_HPA : TXT_PRESSURE_IN, pressure_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 1 * gap, gy, gwidth, gheight, 10, 30,    Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
-  DrawGraph(gx + 2 * gap, gy, gwidth, gheight, 0, 100,   TXT_HUMIDITY_PERCENT, humidity_readings, max_readings, autoscale_off, barchart_off);
+  DrawGraph(chart1X, gy, gwidth, gheight, 10, 30, Units == "M" ? TXT_TEMPERATURE_C : TXT_TEMPERATURE_F, temperature_readings, max_readings, autoscale_on, barchart_off);
   const int Rain_array_size = sizeof(rain_readings) / sizeof(float);
   const int Snow_array_size = sizeof(snow_readings) / sizeof(float);
   if (SumOfPrecip(rain_readings, Rain_array_size) >= SumOfPrecip(snow_readings, Snow_array_size))
-    DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, Rain_array_size, autoscale_on, barchart_on);
-  else DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, Snow_array_size, autoscale_on, barchart_on);
+    DrawGraph(chart2X, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_RAINFALL_MM : TXT_RAINFALL_IN, rain_readings, Rain_array_size, autoscale_on, barchart_on);
+  else DrawGraph(chart2X, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, Snow_array_size, autoscale_on, barchart_on);
+}
+//#############################################################################################
+void DrawCenteredText(int centerX, int baselineY, const String& text) {
+  int w = u8g2Fonts.getUTF8Width(text.c_str());
+  u8g2Fonts.setCursor(centerX - w / 2, baselineY);
+  u8g2Fonts.print(text);
+}
+//#############################################################################################
+String TruncateTextToWidth(String text, int maxWidth) {
+  if (u8g2Fonts.getUTF8Width(text.c_str()) <= maxWidth) return text;
+  while (text.length() > 1 && u8g2Fonts.getUTF8Width((text + "...").c_str()) > maxWidth) {
+    // Step back across UTF-8 continuation bytes so multi-byte characters (ä, ö, ü, ß) aren't split
+    while (text.length() > 1 && (uint8_t(text[text.length() - 1]) & 0xC0) == 0x80) {
+      text.remove(text.length() - 1);
+    }
+    text.remove(text.length() - 1);
+  }
+  return text + "...";
+}
+//#############################################################################################
+void DrawCalendarListCard(int x, int y, int w, int h, const char* title, const CalendarEvent events[], int count, bool configured) {
+  const int headerH = 36;
+  display.drawRect(x, y, w, h, GxEPD_BLACK);
+  display.drawLine(x, y + headerH, x + w - 1, y + headerH, GxEPD_BLACK);
+  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
+  DrawCenteredText(x + w / 2, y + 25, title);
+
+  u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+  const int padX = 10;
+  const int startY = y + headerH + 24;
+  const int rowStep = 26;
+  const int maxRows = (h - headerH - 12) / rowStep;
+
+  if (!configured) {
+    u8g2Fonts.setCursor(x + padX, startY);
+    u8g2Fonts.print(TXT_CAL_NOT_CONF);
+    return;
+  }
+  if (count == 0) {
+    u8g2Fonts.setCursor(x + padX, startY);
+    u8g2Fonts.print(TXT_NO_EVENTS);
+    return;
+  }
+
+  const int timeColW = 58;
+  const int titleMaxW = w - padX * 2 - timeColW;
+  bool overflow = count > maxRows;
+  int visibleRows = overflow ? maxRows - 1 : count;
+
+  for (int i = 0; i < visibleRows; i++) {
+    int rowY = startY + i * rowStep;
+    String timeLabel = events[i].allDay ? TXT_ALL_DAY : events[i].time;
+    u8g2Fonts.setCursor(x + padX, rowY);
+    u8g2Fonts.print(timeLabel);
+    u8g2Fonts.setCursor(x + padX + timeColW, rowY);
+    u8g2Fonts.print(TruncateTextToWidth(events[i].title, titleMaxW));
+  }
+  if (overflow) {
+    int rowY = startY + visibleRows * rowStep;
+    u8g2Fonts.setCursor(x + padX, rowY);
+    u8g2Fonts.print("+" + String(count - visibleRows) + " weitere");
+  }
+}
+//#############################################################################################
+void DisplayCalendarSection(int x, int y, int width, int height) {
+  u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+  DrawCenteredText(x + width / 2, y + 8, TXT_TODAY_EVENTS);
+
+  const int cardTopOffset = 30;
+  const int colGap = 12;
+  const int colW = (width - colGap) / 2;
+  const int colH = height - cardTopOffset;
+  const bool configured = (strlen(calendarBridgeUrl) > 0);
+
+  DrawCalendarListCard(x, y + cardTopOffset, colW, colH, "Piet", pietEvents, pietEventCount, configured);
+  DrawCalendarListCard(x + colW + colGap, y + cardTopOffset, colW, colH, "Nati", natiEvents, natiEventCount, configured);
 }
 //#############################################################################################
 int iconScale(uint8_t IconSize, int& linesize) {
@@ -1221,4 +1306,10 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
       condition description, medium weather icon, humidity, visibility, and cloud cover
    2. Moved date/time and Wi-Fi/battery status card directly below the top row
       on the left side of the display
+
+   Version 1.7
+   1. Removed humidity and pressure charts from the 3-day forecast, moved
+      temperature and precipitation charts to the right, and centered headline
+   2. Added bottom-left "Heutige Termine" section with side-by-side "Piet"
+      and "Nati" event list cards
 */

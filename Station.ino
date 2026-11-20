@@ -94,11 +94,14 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.5";     // Programme version, see change log at end
+String version = "1.6";     // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
-boolean LargeIcon = true, SmallIcon = false;
+const uint8_t SmallIcon  = 0;
+const uint8_t MediumIcon = 1;
+const uint8_t LargeIcon  = 2;
 #define Large  28           // For icon drawing, needs to be odd number for best effect
+#define Medium 15           // For compact top-row Conditions card icon
 #define Small  8            // 6  For icon drawing, needs to be odd number for best effect
 const byte MaxEvents = 10;  // For event reporting, the maximum that can be recorded
 String     Time_str = "--:--:--";
@@ -223,15 +226,22 @@ void DisableBrownOutDetector() {
 }
 //#########################################################################################
 void DisplayWeather() {                          // 12.48" e-paper display is 1304x984 resolution
+  u8g2Fonts.setFont(u8g2_font_helvB24_tf);
+  int dateW = u8g2Fonts.getUTF8Width(Date_str.c_str());
+  u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+  int timeW = u8g2Fonts.getUTF8Width((String(TXT_UPDATED) + Time_str).c_str());
+  int statusX = max(315, 12 + max(dateW, timeW) + 32);
+  if (statusX > SCREEN_WIDTH - 212) statusX = SCREEN_WIDTH - 212;
+
   display.firstPage();
   do
   {
-    DisplayGeneralInfoSection();                 // Top line of the display
+    DisplayGeneralInfoSection();                 // Top line and date/time below top row
     DisplayDisplayWindSection(5, 40, WxConditions[0].Winddir, WxConditions[0].Windspeed, 214, 190);
     DisplayAstronomySection(5, 430);             // Astronomy section Sun rise/set, Moon phase and Moon icon
-    DisplayMainWeatherSection(499, 190);          // Centre section of display for Location, temperature, Weather report, current Wx Symbol and wind direction
-    DisplayStatusSection(1092, 342, wifi_signal); // Wi-Fi signal strength and Battery voltage
-    DisplayForecastSection(372, 450);             // 3hr forecast boxes
+    DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
+    DisplayStatusSection(statusX, 242, wifi_signal); // Wi-Fi signal strength and Battery voltage to the right of date/time
+    DisplayForecastSection(372, 450);            // 3hr forecast boxes
   }
   while (display.nextPage());
 }
@@ -244,19 +254,20 @@ void DisplayGeneralInfoSection() {
   //drawString(SCREEN_WIDTH - 150, 20, "IP=" + LocalIP + ",  MAC=" + WiFi.macAddress() ,RIGHT);
   display.drawLine(5, 40, SCREEN_WIDTH - 8, 40, GxEPD_BLACK);
   u8g2Fonts.setFont(u8g2_font_helvB24_tf);
-  drawString(820, 365, Date_str, CENTER);
+  drawString(12, 265, Date_str, LEFT);
   u8g2Fonts.setFont(u8g2_font_helvB18_tf);
-  drawString(830, 405, TXT_UPDATED + Time_str, CENTER);
+  drawString(12, 305, TXT_UPDATED + Time_str, LEFT);
 }
 //#########################################################################################
-void DisplayMainWeatherSection(int x, int y) {  // (x=500, y=190)
-  //  display.drawRect(x-67, y-65, 140, 182, GxEPD_BLACK);
-  display.drawLine(372, 80, SCREEN_WIDTH - 8, 80, GxEPD_BLACK);
-  DisplayConditionsSection(x + 3, y + 80, WxConditions[0].Icon, LargeIcon);
-  DisplayTemperatureSection(x + 222, y - 150, 214, 190);
-  DisplayPressureSection(x + 421, y - 150, 214, 190,  WxConditions[0].Pressure, WxConditions[0].Trend);
-  DisplayPrecipitationSection(x + 631, y - 150, 214, 190);
-  DisplayForecastTextSection(x + 147, y + 42, 650, 108);
+void DisplayMainWeatherSection(int x, int y) {  // (x=221, y=40)
+  DisplayConditionsCard(x, y, 427, 190);
+  DisplayTemperatureSection(725, y, 214, 190);
+  DisplayPressureSection(922, y, 214, 190, WxConditions[0].Pressure, WxConditions[0].Trend);
+  DisplayPrecipitationSection(1130, y, 214, 190);
+  // Header divider lines inside Temperature, Pressure, and Precipitation cards
+  display.drawLine(650,  y + 40, 863,  y + 40, GxEPD_BLACK);
+  display.drawLine(866,  y + 40, 1079, y + 40, GxEPD_BLACK);
+  display.drawLine(1082, y + 40, 1295, y + 40, GxEPD_BLACK);
 }
 //#########################################################################################
 void DrawTornadoIcon(int x, int y) {
@@ -325,22 +336,82 @@ void DisplayTemperatureSection(int x, int y, int twidth, int tdepth) {
   drawString(x + 10 + dx, y + 140 + dy, String(WxConditions[0].High, 0) + "° | " + String(WxConditions[0].Low, 0) + "°", CENTER); // Show forecast high and Low
 }
 //#########################################################################################
-void DisplayForecastTextSection(int x, int y , int fwidth, int fdepth) {
-  String Wx_Description;
-  display.drawRect(x, y, fwidth, fdepth, GxEPD_BLACK); // forecast text outline
-  u8g2Fonts.setFont(u8g2_font_helvB18_tf);
-  if (Language == "DE")
-    Wx_Description = WxConditions[0].Forecast0;
-  else {
-    Wx_Description = WxConditions[0].Main0;
-    if (WxConditions[0].Forecast0 != "") Wx_Description += " (" + WxConditions[0].Forecast0;
+String BuildConditionsDescription() {
+  String desc;
+  if (Language == "DE") {
+    desc = WxConditions[0].Forecast0;
+  } else {
+    desc = WxConditions[0].Main0;
+    if (WxConditions[0].Forecast0 != "") desc += " (" + WxConditions[0].Forecast0;
   }
-  if (WxConditions[0].Forecast1 != "") Wx_Description += ", " + WxConditions[0].Forecast1;
-  if (WxConditions[0].Forecast2 != "") Wx_Description += ", " + WxConditions[0].Forecast2;
-  if (Wx_Description.indexOf("(") > 0) Wx_Description += ")";
-  int MsgWidth = 43; // Using proportional fonts, so be aware of making it too wide!
-  if (Language == "DE") drawStringMaxWidth(x + 30, y + 40, MsgWidth, Wx_Description, LEFT); // Leave German text in original format, 28 character screen width at this font size
-  else                  drawStringMaxWidth(x + 30, y + 40, MsgWidth, TitleCase(Wx_Description), LEFT); // 28 character screen width at this font size
+  if (WxConditions[0].Forecast1 != "") desc += ", " + WxConditions[0].Forecast1;
+  if (WxConditions[0].Forecast2 != "") desc += ", " + WxConditions[0].Forecast2;
+  if (desc.indexOf("(") > 0) desc += ")";
+  return (Language == "DE") ? desc : TitleCase(desc);
+}
+//#########################################################################################
+void DrawWrappedConditionText(int x, int y, int maxWidth, const String& text) {
+  u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+  if (u8g2Fonts.getUTF8Width(text.c_str()) <= maxWidth) {
+    u8g2Fonts.setCursor(x, y);
+    u8g2Fonts.print(text);
+    return;
+  }
+  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
+  if (u8g2Fonts.getUTF8Width(text.c_str()) <= maxWidth) {
+    u8g2Fonts.setCursor(x, y - 2);
+    u8g2Fonts.print(text);
+    return;
+  }
+  // Split at the last space that fits within maxWidth across up to two lines
+  int splitPos = -1;
+  for (int i = 0; i < (int)text.length(); i++) {
+    if (text[i] == ' ') {
+      if (u8g2Fonts.getUTF8Width(text.substring(0, i).c_str()) <= maxWidth) splitPos = i;
+      else break;
+    }
+  }
+  if (splitPos <= 0) {
+    u8g2Fonts.setCursor(x, y - 4);
+    u8g2Fonts.print(text);
+    return;
+  }
+  String line1 = text.substring(0, splitPos);
+  String line2 = text.substring(splitPos + 1);
+  line2.trim();
+  while (line2.length() > 3 && u8g2Fonts.getUTF8Width(line2.c_str()) > maxWidth) {
+    line2.remove(line2.length() - 1);
+  }
+  u8g2Fonts.setCursor(x, y - 4);
+  u8g2Fonts.print(line1);
+  u8g2Fonts.setCursor(x, y + 20);
+  u8g2Fonts.print(line2);
+}
+//#########################################################################################
+void DisplayConditionsCard(int x, int y, int cwidth, int cdepth) {
+  display.drawRect(x, y, cwidth, cdepth, GxEPD_BLACK);
+  display.drawLine(x, y + 40, x + cwidth - 1, y + 40, GxEPD_BLACK);
+  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
+  int titleW = u8g2Fonts.getUTF8Width(TXT_CONDITIONS.c_str());
+  u8g2Fonts.setCursor(x + (cwidth - titleW) / 2, y + 28);
+  u8g2Fonts.print(TXT_CONDITIONS);
+
+  DisplayConditionsSection(x + 78, y + 118, WxConditions[0].Icon, MediumIcon);
+
+  const int textX = x + 166;
+  const int maxTextW = cwidth - 178;
+  DrawWrappedConditionText(textX, y + 76, maxTextW, BuildConditionsDescription());
+
+  u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+  u8g2Fonts.setCursor(textX, y + 124);
+  u8g2Fonts.print(String(WxConditions[0].Humidity, 0) + "%");
+  int humX = u8g2Fonts.getCursorX();
+  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
+  u8g2Fonts.setCursor(humX + 6, y + 124);
+  u8g2Fonts.print("RH");
+
+  if (WxConditions[0].Visibility > 0) Visibility(textX + 14, y + 162, String(WxConditions[0].Visibility) + "M");
+  if (WxConditions[0].Cloudcover > 0) CloudCover(textX + 150, y + 162, WxConditions[0].Cloudcover);
   u8g2Fonts.setFont(u8g2_font_helvB10_tf);
 }
 //#########################################################################################
@@ -504,7 +575,20 @@ void DisplayForecastSection(int x, int y) {
   else DrawGraph(gx + 3 * gap + 5, gy, gwidth, gheight, 0, 30, Units == "M" ? TXT_SNOWFALL_MM : TXT_SNOWFALL_IN, snow_readings, Snow_array_size, autoscale_on, barchart_on);
 }
 //#############################################################################################
-void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
+int iconScale(uint8_t IconSize, int& linesize) {
+  if (IconSize == SmallIcon) {
+    linesize = 1;
+    return Small;
+  }
+  if (IconSize == MediumIcon) {
+    linesize = 2;
+    return Medium;
+  }
+  linesize = 3;
+  return Large;
+}
+//#############################################################################################
+void DisplayConditionsSection(int x, int y, String IconName, uint8_t IconSize) {
   Serial.println("Icon name: " + IconName);
   if      (IconName == "01d" || IconName == "01n")  Sunny(x, y, IconSize, IconName);
   else if (IconName == "02d" || IconName == "02n")  MostlySunny(x, y, IconSize, IconName);
@@ -527,7 +611,7 @@ void DisplayConditionsSection(int x, int y, String IconName, bool IconSize) {
     drawString(x + 35, y + 150, "RH", CENTER);
     if (WxConditions[0].Visibility > 0) Visibility(x - 100, y - 160, String(WxConditions[0].Visibility) + "M");
     if (WxConditions[0].Cloudcover > 0) CloudCover(x + 60, y - 160, WxConditions[0].Cloudcover);
-  } 
+  }
 }
 //#########################################################################################
 void arrow(int x, int y, int asize, float aangle, int pwidth, int plength) {
@@ -716,14 +800,14 @@ void addraindrop(int x, int y, int scale) {
   display.fillTriangle(x - scale / 2, y, x, y - scale * 1.2, x + scale / 2, y , GxEPD_BLACK);
 }
 //#########################################################################################
-void addrain(int x, int y, int scale, bool IconSize) {
+void addrain(int x, int y, int scale, uint8_t IconSize) {
   if (IconSize == SmallIcon) scale *= 1.34;
   for (int d = 0; d < 4; d++) {
     addraindrop(x + scale * (7.8 - d * 1.95) - scale * 5.2, y + scale * 2.1 - scale / 6, scale / 1.6);
   }
 }
 //#########################################################################################
-void addsnow(int x, int y, int scale, bool IconSize) {
+void addsnow(int x, int y, int scale, uint8_t IconSize) {
   int dxo, dyo, dxi, dyi;
   for (int flakes = 0; flakes < 5; flakes++) {
     for (int i = 0; i < 360; i = i + 45) {
@@ -740,42 +824,41 @@ void addtstorm(int x, int y, int scale) {
     display.drawLine(x - scale * 4 + scale * i * 1.5 + 0, y + scale * 1.5, x - scale * 3.5 + scale * i * 1.5 + 0, y + scale, GxEPD_BLACK);
     if (scale != Small) {
       display.drawLine(x - scale * 4 + scale * i * 1.5 + 1, y + scale * 1.5, x - scale * 3.5 + scale * i * 1.5 + 1, y + scale, GxEPD_BLACK);
-      display.drawLine(x - scale * 4 + scale * i * 1.5 + 2, y + scale * 1.5, x - scale * 3.5 + scale * i * 1.5 + 2, y + scale, GxEPD_BLACK);
+      if (scale == Large) display.drawLine(x - scale * 4 + scale * i * 1.5 + 2, y + scale * 1.5, x - scale * 3.5 + scale * i * 1.5 + 2, y + scale, GxEPD_BLACK);
     }
     display.drawLine(x - scale * 4 + scale * i * 1.5, y + scale * 1.5 + 0, x - scale * 3 + scale * i * 1.5 + 0, y + scale * 1.5 + 0, GxEPD_BLACK);
     if (scale != Small) {
       display.drawLine(x - scale * 4 + scale * i * 1.5, y + scale * 1.5 + 1, x - scale * 3 + scale * i * 1.5 + 0, y + scale * 1.5 + 1, GxEPD_BLACK);
-      display.drawLine(x - scale * 4 + scale * i * 1.5, y + scale * 1.5 + 2, x - scale * 3 + scale * i * 1.5 + 0, y + scale * 1.5 + 2, GxEPD_BLACK);
+      if (scale == Large) display.drawLine(x - scale * 4 + scale * i * 1.5, y + scale * 1.5 + 2, x - scale * 3 + scale * i * 1.5 + 0, y + scale * 1.5 + 2, GxEPD_BLACK);
     }
     display.drawLine(x - scale * 3.5 + scale * i * 1.4 + 0, y + scale * 2.5, x - scale * 3 + scale * i * 1.5 + 0, y + scale * 1.5, GxEPD_BLACK);
     if (scale != Small) {
       display.drawLine(x - scale * 3.5 + scale * i * 1.4 + 1, y + scale * 2.5, x - scale * 3 + scale * i * 1.5 + 1, y + scale * 1.5, GxEPD_BLACK);
-      display.drawLine(x - scale * 3.5 + scale * i * 1.4 + 2, y + scale * 2.5, x - scale * 3 + scale * i * 1.5 + 2, y + scale * 1.5, GxEPD_BLACK);
+      if (scale == Large) display.drawLine(x - scale * 3.5 + scale * i * 1.4 + 2, y + scale * 2.5, x - scale * 3 + scale * i * 1.5 + 2, y + scale * 1.5, GxEPD_BLACK);
     }
   }
 }
 //#########################################################################################
-void addsun(int x, int y, int scale, bool IconSize) {
+void addsun(int x, int y, int scale, uint8_t IconSize) {
   int linesize = 3;
   if (IconSize == SmallIcon) linesize = 1;
+  else if (IconSize == MediumIcon) linesize = 2;
   display.fillRect(x - scale * 2, y, scale * 4, linesize, GxEPD_BLACK);
   display.fillRect(x, y - scale * 2, linesize, scale * 4, GxEPD_BLACK);
   display.drawLine(x - scale * 1.3, y - scale * 1.3, x + scale * 1.3, y + scale * 1.3, GxEPD_BLACK);
   display.drawLine(x - scale * 1.3, y + scale * 1.3, x + scale * 1.3, y - scale * 1.3, GxEPD_BLACK);
-  if (IconSize == LargeIcon) {
-    display.drawLine(1 + x - scale * 1.3, y - scale * 1.3, 1 + x + scale * 1.3, y + scale * 1.3, GxEPD_BLACK);
-    display.drawLine(2 + x - scale * 1.3, y - scale * 1.3, 2 + x + scale * 1.3, y + scale * 1.3, GxEPD_BLACK);
-    display.drawLine(3 + x - scale * 1.3, y - scale * 1.3, 3 + x + scale * 1.3, y + scale * 1.3, GxEPD_BLACK);
-    display.drawLine(1 + x - scale * 1.3, y + scale * 1.3, 1 + x + scale * 1.3, y - scale * 1.3, GxEPD_BLACK);
-    display.drawLine(2 + x - scale * 1.3, y + scale * 1.3, 2 + x + scale * 1.3, y - scale * 1.3, GxEPD_BLACK);
-    display.drawLine(3 + x - scale * 1.3, y + scale * 1.3, 3 + x + scale * 1.3, y - scale * 1.3, GxEPD_BLACK);
+  if (IconSize != SmallIcon) {
+    for (int o = 1; o <= linesize; o++) {
+      display.drawLine(o + x - scale * 1.3, y - scale * 1.3, o + x + scale * 1.3, y + scale * 1.3, GxEPD_BLACK);
+      display.drawLine(o + x - scale * 1.3, y + scale * 1.3, o + x + scale * 1.3, y - scale * 1.3, GxEPD_BLACK);
+    }
   }
   display.fillCircle(x, y, scale * 1.3, GxEPD_WHITE);
   display.fillCircle(x, y, scale, GxEPD_BLACK);
   display.fillCircle(x, y, scale - linesize, GxEPD_WHITE);
 }
 //#########################################################################################
-void addfog(int x, int y, int scale, int linesize, bool IconSize) {
+void addfog(int x, int y, int scale, int linesize, uint8_t IconSize) {
   if (IconSize == SmallIcon) {
     y -= 10;
     linesize = 1;
@@ -787,130 +870,102 @@ void addfog(int x, int y, int scale, int linesize, bool IconSize) {
   }
 }
 //#########################################################################################
-void Sunny(int x, int y, bool IconSize, String IconName) {
-  int scale = Small;
-  if (IconSize == LargeIcon) scale = Large;
-  else y = y - 3; // Shift up small sun icon
+void Sunny(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
+  if (IconSize == SmallIcon) y = y - 3; // Shift up small sun icon
   if (IconName.endsWith("n")) addmoon(x, y + 3, scale, IconSize);
   scale = scale * 1.6;
   addsun(x, y, scale, IconSize);
 }
 //#########################################################################################
-void MostlySunny(int x, int y, bool IconSize, String IconName) {
-  int scale = Small, linesize = 3, offset = 5;
-  if (IconSize == LargeIcon) {
-    scale = Large;
-    offset = 10;
-  }
-  if (scale == Small) linesize = 1;
+void MostlySunny(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
+  int offset = (IconSize == LargeIcon) ? 10 : (IconSize == MediumIcon ? 6 : 5);
   if (IconName.endsWith("n")) addmoon(x, y + offset, scale, IconSize);
   addcloud(x, y + offset, scale, linesize);
   addsun(x - scale * 1.8, y - scale * 1.8 + offset, scale, IconSize);
 }
 //#########################################################################################
-void MostlyCloudy(int x, int y, bool IconSize, String IconName) {
-  int scale = Large, linesize = 3;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void MostlyCloudy(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addcloud(x, y, scale, linesize);
   addsun(x - scale * 1.8, y - scale * 1.8, scale, IconSize);
   addcloud(x, y, scale, linesize);
 }
 //#########################################################################################
-void Cloudy(int x, int y, bool IconSize, String IconName) {
-  int scale = Large, linesize = 3;
+void Cloudy(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconSize == SmallIcon) {
-    scale = Small;
     if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
-    linesize = 1;
     addcloud(x, y, scale, linesize);
   }
   else {
-    y += 10;
+    y += (IconSize == MediumIcon ? 6 : 10);
     if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
-    addcloud(x + 30, y - 45, 5, linesize); // Cloud top right
-    addcloud(x - 20, y - 30, 7, linesize); // Cloud top left
-    addcloud(x, y, scale, linesize);       // Main cloud
+    addcloud(x + int(scale * 1.1), y - int(scale * 1.6), max(3, int(scale * 0.18)), linesize); // Cloud top right
+    addcloud(x - int(scale * 0.7), y - int(scale * 1.1), max(4, int(scale * 0.25)), linesize); // Cloud top left
+    addcloud(x, y, scale, linesize); // Main cloud
   }
 }
 //#########################################################################################
-void Rain(int x, int y, bool IconSize, String IconName) {
-  int scale = Large, linesize = 3;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void Rain(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addcloud(x, y, scale, linesize);
   addrain(x, y, scale, IconSize);
 }
 //#########################################################################################
-void ExpectRain(int x, int y, bool IconSize, String IconName) {
-  int scale = Large, linesize = 3;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void ExpectRain(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addsun(x - scale * 1.8, y - scale * 1.8, scale, IconSize);
   addcloud(x, y, scale, linesize);
   addrain(x, y, scale, IconSize);
 }
 //#########################################################################################
-void ChanceRain(int x, int y, bool IconSize, String IconName) {
-  int scale = Large, linesize = 3;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void ChanceRain(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addsun(x - scale * 1.8, y - scale * 1.8, scale, IconSize);
   addcloud(x, y, scale, linesize);
   addrain(x, y, scale, IconSize);
 }
 //#########################################################################################
-void Tstorms(int x, int y, bool IconSize, String IconName) {
-  int scale = Large, linesize = 3;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void Tstorms(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addcloud(x, y, scale, linesize);
   addtstorm(x, y, scale);
 }
 //#########################################################################################
-void Snow(int x, int y, bool IconSize, String IconName) {
-  int scale = Large, linesize = 3;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void Snow(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addcloud(x, y, scale, linesize);
   addsnow(x, y, scale, IconSize);
 }
 //#########################################################################################
-void Fog(int x, int y, bool IconSize, String IconName) {
-  int linesize = 3, scale = Large;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void Fog(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addcloud(x, y - 5, scale, linesize);
   addfog(x, y - 5, scale, linesize, IconSize);
 }
 //#########################################################################################
-void Haze(int x, int y, bool IconSize, String IconName) {
-  int linesize = 3, scale = Large;
-  if (IconSize == SmallIcon) {
-    scale = Small;
-    linesize = 1;
-  }
+void Haze(int x, int y, uint8_t IconSize, String IconName) {
+  int linesize = 3;
+  int scale = iconScale(IconSize, linesize);
   if (IconName.endsWith("n")) addmoon(x, y, scale, IconSize);
   addsun(x, y - 5, scale * 1.4, IconSize);
   addfog(x, y - 5, scale * 1.4, linesize, IconSize);
@@ -921,7 +976,7 @@ void CloudCover(int x, int y, int CCover) {
   addcloud(x + 3, y - 3, Small * 0.8, 2); // Cloud top right
   addcloud(x, y,         Small * 0.8, 2); // Main cloud
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-  drawString(x + 40, y - 5, String(CCover) + "%", LEFT);
+  drawString(x + 34, y - 5, String(CCover) + "%", LEFT);
 }
 //#########################################################################################
 void Visibility(int x, int y, String Visi) {
@@ -939,13 +994,17 @@ void Visibility(int x, int y, String Visi) {
   }
   display.fillCircle(x, y, r / 4, GxEPD_BLACK);
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-  drawString(x + 12, y - 3, Visi, LEFT);
+  drawString(x + 18, y - 3, Visi, LEFT);
 }
 //#########################################################################################
-void addmoon(int x, int y, int scale, bool IconSize) {
+void addmoon(int x, int y, int scale, uint8_t IconSize) {
   if (IconSize == LargeIcon) {
     display.fillCircle(x - 85, y - 100, uint16_t(scale * 0.8), GxEPD_BLACK);
     display.fillCircle(x - 57, y - 100, uint16_t(scale * 1.6), GxEPD_WHITE);
+  }
+  else if (IconSize == MediumIcon) {
+    display.fillCircle(x - 42, y - 45, uint16_t(scale * 0.7), GxEPD_BLACK);
+    display.fillCircle(x - 28, y - 45, uint16_t(scale * 1.2), GxEPD_WHITE);
   }
   else
   {
@@ -954,8 +1013,8 @@ void addmoon(int x, int y, int scale, bool IconSize) {
   }
 }
 //#########################################################################################
-void Nodata(int x, int y, bool IconSize, String IconName) {
-  if (IconSize == LargeIcon) u8g2Fonts.setFont(u8g2_font_helvB24_tf); else u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+void Nodata(int x, int y, uint8_t IconSize, String IconName) {
+  if (IconSize != SmallIcon) u8g2Fonts.setFont(u8g2_font_helvB24_tf); else u8g2Fonts.setFont(u8g2_font_helvB10_tf);
   drawString(x - 3, y - 10, "?", CENTER);
   u8g2Fonts.setFont(u8g2_font_helvB08_tf);
 }
@@ -1156,4 +1215,10 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
    Version 1.5
    1. Display build version and short commit SHA in the top row as
       "Version <version> (<sha>)"
+
+   Version 1.6
+   1. Compacted current conditions into a 2x-wide top-row card with integrated
+      condition description, medium weather icon, humidity, visibility, and cloud cover
+   2. Moved date/time and Wi-Fi/battery status card directly below the top row
+      on the left side of the display
 */

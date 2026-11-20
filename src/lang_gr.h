@@ -75,3 +75,13 @@ const String TXT_TODAY_EVENTS = "Heutige Termine";
 const String TXT_NO_EVENTS    = "Keine Termine";
 const String TXT_ALL_DAY      = "Ganzt.";
 const String TXT_CAL_NOT_CONF = "Nicht konfiguriert";
+
+//Fuel & Travel
+const String TXT_FUEL_PRICES   = "Kraftstoffpreise";
+const String TXT_FUEL_CLOSED   = "geschlossen";
+const String TXT_TRAVEL_TIMES  = "Fahrzeiten";
+const String TXT_TRAFFIC_CLEAR = "Freie Fahrt";
+const String TXT_TRAFFIC_DELAY = "Verzögerung";
+const String TXT_TRAFFIC_HEAVY = "Viel Verkehr";
+const String TXT_NOT_CONF      = "Nicht konfiguriert";
+

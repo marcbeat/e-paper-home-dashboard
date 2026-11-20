@@ -50,3 +50,15 @@ const char* calendarBridgeUrl   = ""; // Deployed Google Apps Script Web App URL
 const char* calendarBridgeToken = ""; // Shared secret token validated by the Apps Script (?token=...) so the URL cannot be queried publicly
 const char* calendarId1      = ""; // Google Calendar ID for cal1 (e.g. "primary", "cal1@gmail.com", or "...@group.calendar.google.com")
 const char* calendarId2      = ""; // Google Calendar ID for cal2 (must be shared read-only with the Google account running the Apps Script)
+
+// Fuel prices (Tankerkoenig API: https://creativecommons.tankerkoenig.de/)
+const char* tankerkoenigApiKey  = "";
+const char* fuelStationIds[3]   = { "", "", "" }; // Up to 3 station UUIDs
+const char* fuelStationNames[3] = { "", "", "" }; // Short display labels (e.g. "Aral", "Shell", "Jet")
+
+// Travel times (Mapbox Directions API: https://docs.mapbox.com/api/navigation/directions/)
+const char* mapboxAccessToken   = "";
+const char* travelDestNames[2]  = { "", "" }; // Short destination labels (e.g. "Arbeit", "Zentrum")
+const char* travelDestLats[2]   = { "", "" }; // Destination latitudes
+const char* travelDestLons[2]   = { "", "" }; // Destination longitudes
+

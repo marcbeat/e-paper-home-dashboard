@@ -91,7 +91,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 
 
 //################  VERSION  ##################################################
-String version = "1.3 / 12.48in";     // Programme version, see change log at end
+String version = "1.4";     // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 boolean LargeIcon = true, SmallIcon = false;
@@ -224,7 +224,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
   do
   {
     DisplayGeneralInfoSection();                 // Top line of the display
-    DisplayDisplayWindSection(180, 260, WxConditions[0].Winddir, WxConditions[0].Windspeed, 140);
+    DisplayDisplayWindSection(5, 40, WxConditions[0].Winddir, WxConditions[0].Windspeed, 214, 190);
     DisplayAstronomySection(5, 430);             // Astronomy section Sun rise/set, Moon phase and Moon icon
     DisplayMainWeatherSection(499, 190);          // Centre section of display for Location, temperature, Weather report, current Wx Symbol and wind direction
     DisplayStatusSection(1092, 342, wifi_signal); // Wi-Fi signal strength and Battery voltage
@@ -248,7 +248,7 @@ void DisplayGeneralInfoSection() {
 //#########################################################################################
 void DisplayMainWeatherSection(int x, int y) {  // (x=500, y=190)
   //  display.drawRect(x-67, y-65, 140, 182, GxEPD_BLACK);
-  display.drawLine(5, 80, SCREEN_WIDTH - 8, 80,  GxEPD_BLACK);
+  display.drawLine(372, 80, SCREEN_WIDTH - 8, 80, GxEPD_BLACK);
   DisplayConditionsSection(x + 3, y + 80, WxConditions[0].Icon, LargeIcon);
   DisplayTemperatureSection(x + 222, y - 150, 214, 190);
   DisplayPressureSection(x + 421, y - 150, 214, 190,  WxConditions[0].Pressure, WxConditions[0].Trend);
@@ -256,41 +256,51 @@ void DisplayMainWeatherSection(int x, int y) {  // (x=500, y=190)
   DisplayForecastTextSection(x + 147, y + 42, 650, 108);
 }
 //#########################################################################################
-void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int Cradius) {
-  arrow(x, y, Cradius - 22, angle, 18, 33); // Show wind direction on outer circle of width and length
-  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
-  drawString(x - 30, y - Cradius - 60, TXT_WIND_SPEED_DIRECTION, CENTER);
-  int dxo, dyo, dxi, dyi;
-  display.drawLine(5, 40, 5, y + Cradius + 50, GxEPD_BLACK);
-  display.drawCircle(x, y, Cradius, GxEPD_BLACK);     // Draw compass circle
-  display.drawCircle(x, y, Cradius + 1, GxEPD_BLACK); // Draw compass circle
-  display.drawCircle(x, y, Cradius * 0.7, GxEPD_BLACK); // Draw compass inner circle
-  for (float a = 0; a < 360; a = a + 22.5) {
-    dxo = Cradius * cos((a - 90) * PI / 180);
-    dyo = Cradius * sin((a - 90) * PI / 180);
-    if (a == 45)  drawString(dxo + x + 27, dyo + y - 12, TXT_NE, CENTER);
-    if (a == 135) drawString(dxo + x + 27, dyo + y + 6,  TXT_SE, CENTER);
-    if (a == 225) drawString(dxo + x - 43, dyo + y + 6,  TXT_SW, CENTER);
-    if (a == 315) drawString(dxo + x - 43, dyo + y - 12, TXT_NW, CENTER);
-    dxi = dxo * 0.9;
-    dyi = dyo * 0.9;
-    display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, GxEPD_BLACK);
-    dxo = dxo * 0.7;
-    dyo = dyo * 0.7;
-    dxi = dxo * 0.9;
-    dyi = dyo * 0.9;
-    display.drawLine(dxo + x, dyo + y, dxi + x, dyi + y, GxEPD_BLACK);
+void DrawTornadoIcon(int x, int y) {
+  const int8_t dx[7] = {  2, -1, -3, -2,  1,  4,  6 };
+  const uint8_t w[7] = { 26, 22, 18, 14, 10,  7,  4 };
+  const int8_t dy[7] = {-12, -8, -4,  0,  4,  8, 12 };
+  for (int i = 0; i < 7; i++) {
+    int bx = x + dx[i] - w[i] / 2;
+    int by = y + dy[i];
+    display.fillRoundRect(bx, by, w[i], 3, 1, GxEPD_BLACK);
   }
-  drawString(x - 3, y - Cradius - 22, TXT_N, CENTER);
-  drawString(x - 5, y + Cradius + 26, TXT_S, CENTER);
-  drawString(x - Cradius - 27, y - 3, TXT_W, CENTER);
-  drawString(x + Cradius + 15, y - 3, TXT_E, CENTER);
-  drawString(x - 12, y - 53, WindDegToDirection(angle), CENTER);
-  drawString(x + 3, y + 50, String(angle, 0) + "°", CENTER);
-  u8g2Fonts.setFont(u8g2_font_helvB24_tf);
-  drawString(x - 12, y - 3, String(windspeed, 1), CENTER);
+  display.fillCircle(x + 7, y + 15, 1, GxEPD_BLACK);
+}
+//#########################################################################################
+void DrawCompassIcon(int x, int y, float angle) {
+  const int r = 14;
+  display.drawCircle(x, y, r, GxEPD_BLACK);
+  display.drawCircle(x, y, r - 1, GxEPD_BLACK);
+  display.drawLine(x, y - r, x, y - r + 3, GxEPD_BLACK);
+  display.drawLine(x + r - 3, y, x + r, y, GxEPD_BLACK);
+  display.drawLine(x, y + r - 3, x, y + r, GxEPD_BLACK);
+  display.drawLine(x - r, y, x - r + 3, y, GxEPD_BLACK);
+  float rad = (angle - 90.0f) * PI / 180.0f;
+  float cosA = cos(rad), sinA = sin(rad);
+  int tipX = round(x + 10.0f * cosA);
+  int tipY = round(y + 10.0f * sinA);
+  int tailX = round(x - 10.0f * cosA);
+  int tailY = round(y - 10.0f * sinA);
+  int side1X = round(x - 3.5f * sinA);
+  int side1Y = round(y + 3.5f * cosA);
+  int side2X = round(x + 3.5f * sinA);
+  int side2Y = round(y - 3.5f * cosA);
+  display.fillTriangle(tipX, tipY, side1X, side1Y, side2X, side2Y, GxEPD_BLACK);
+  display.drawTriangle(tailX, tailY, side1X, side1Y, side2X, side2Y, GxEPD_BLACK);
+  display.fillCircle(x, y, 1, GxEPD_WHITE);
+}
+//#########################################################################################
+void DisplayDisplayWindSection(int x, int y, float angle, float windspeed, int wwidth, int wdepth) {
+  display.drawRect(x, y, wwidth, wdepth, GxEPD_BLACK);
+  display.drawLine(x, y + 40, x + wwidth - 1, y + 40, GxEPD_BLACK);
   u8g2Fonts.setFont(u8g2_font_helvB14_tf);
-  drawString(x - 5, y + 22, (Units == "M" ? "m/s" : "mph"), CENTER);
+  drawString(x + wwidth / 2 - 9, y + 20, TXT_WIND_SPEED_DIRECTION, CENTER);
+  DrawTornadoIcon(x + 30, y + 90);
+  DrawCompassIcon(x + 30, y + 145, angle);
+  u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+  drawString(x + 56, y + 91, String(windspeed, 1) + " " + (Units == "M" ? "m/s" : "mph"), LEFT);
+  drawString(x + 56, y + 146, WindDegToDirection(angle) + " (" + String(angle, 0) + "°)", LEFT);
 }
 //#########################################################################################
 String WindDegToDirection(float winddirection) {
@@ -1116,7 +1126,7 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
 }
 //#########################################################################################
 /*
-  Version 1.0 / 9.7in
+  Version 1.0
    1. First Version of the weather display on an 9.7 Waveshare display
       Based on version 7_5_T7 for the 7.5 inch display written by G6EJD
    2. Trying to get accurate 30Min intervals. (the 'diff' variable added)
@@ -1125,16 +1135,18 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
       Due to sporadic WiFi connection error or RX receive errors the InitialiseDisplay() 
       is moved to the begin of the setup function. If it is not moved, the ESP32 crashes,
       because the event report can't be written to the not initialized display.
-   Version 1.1 / 9.7in
+   Version 1.1
    1. Added probability of precipitationto display e,g, 17%
    
-   Version 1.2 / 9.7in
+   Version 1.2
    1. Adjusted graph drawing function to improve negative number drawing Line 1007
 
-   Version 1.3 / 12.48in
+   Version 1.3
    1. Adapted display initialization for the 12.48 inch Waveshare display
    2. Adjusted layout to fit the larger screen
    3. Improved event log handling for the bigger display
-   
-   
+
+   Version 1.4
+   1. Replaced large wind compass with compact top-row "Wind" card showing
+      tornado icon + wind speed and compass icon + direction acronym/degrees
 */

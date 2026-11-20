@@ -46,7 +46,7 @@ const char* TXT_UPDATED = "Aktualisiert:";
 
 
 //Wind
-const String TXT_WIND_SPEED_DIRECTION = "Windgeschw./Richtung";
+const String TXT_WIND_SPEED_DIRECTION = "Wind";
 const String TXT_N   = "N";
 const String TXT_NNE = "NNO";
 const String TXT_NE  = "NO";

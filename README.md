@@ -56,30 +56,46 @@ Based on David Bird's (G6EJD) ESP32 e-Paper Weather Display, adapted for the 4-c
 
 ---
 
-## Google Calender Integration
+## Google Calendar Integration
 
 Prerequisite: Google Apps Script Deployment
-Ensure cal2's Google Calendar is shared (at least "See all event details") with the Google account hosting the script.
-Open script.google.com -> New project, paste:
+Ensure cal2's Google Calendar is shared (at least "See all event details") with the Google account hosting the script, and verify the Apps Script project's timezone matches your station's `Timezone`.
+Open script.google.com -> New project (or update your existing deployment), paste:
 
 ```javascript
 const SHARED_TOKEN = "REPLACE_WITH_LONG_RANDOM_TOKEN";
 
-function formatEvents(calId, startOfDay, endOfDay) {
-  if (!calId) return [];
+function formatEvent(ev) {
+  const allDay = ev.isAllDayEvent();
+  const start = ev.getStartTime();
+  const hh = String(start.getHours()).padStart(2, "0");
+  const mm = String(start.getMinutes()).padStart(2, "0");
+  return {
+    time: allDay ? "" : `${hh}:${mm}`,
+    title: ev.getTitle() || "(Ohne Titel)",
+    allDay: allDay,
+  };
+}
+
+function splitEventsForTodayAndTomorrow(calId, from, todayEnd, tomorrowStart, tomorrowEnd) {
+  if (!calId) return { today: [], tomorrow: [] };
   const cal = CalendarApp.getCalendarById(calId);
-  if (!cal) return [];
-  return cal.getEvents(startOfDay, endOfDay).map((ev) => {
-    const allDay = ev.isAllDayEvent();
+  if (!cal) return { today: [], tomorrow: [] };
+
+  const today = [];
+  const tomorrow = [];
+  for (const ev of cal.getEvents(from, tomorrowEnd)) {
     const start = ev.getStartTime();
-    const hh = String(start.getHours()).padStart(2, "0");
-    const mm = String(start.getMinutes()).padStart(2, "0");
-    return {
-      time: allDay ? "" : `${hh}:${mm}`,
-      title: ev.getTitle() || "(Ohne Titel)",
-      allDay: allDay,
-    };
-  });
+    const end = ev.getEndTime();
+    const item = formatEvent(ev);
+    if (start <= todayEnd && (end > from || (!item.allDay && start >= from))) {
+      today.push(item);
+    }
+    if (start <= tomorrowEnd && (end > tomorrowStart || (!item.allDay && start >= tomorrowStart))) {
+      tomorrow.push(item);
+    }
+  }
+  return { today, tomorrow };
 }
 
 function doGet(e) {
@@ -87,19 +103,25 @@ function doGet(e) {
     return ContentService.createTextOutput(JSON.stringify({ error: "unauthorized" }))
       .setMimeType(ContentService.MimeType.JSON);
   }
-  const now = new Date();
-  const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const endOfDay   = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59);
+  const parsed = e.parameter.datetime ? new Date(e.parameter.datetime) : new Date();
+  const from = isNaN(parsed.getTime()) ? new Date() : parsed;
+  const y = from.getFullYear();
+  const m = from.getMonth();
+  const d = from.getDate();
+  const todayEnd      = new Date(y, m, d, 23, 59, 59, 999);
+  const tomorrowStart = new Date(y, m, d + 1, 0, 0, 0, 0);
+  const tomorrowEnd   = new Date(y, m, d + 1, 23, 59, 59, 999);
+
   const payload = {
-    cal1: formatEvents(e.parameter.cal1 || "", startOfDay, endOfDay),
-    cal2: formatEvents(e.parameter.cal2 || "", startOfDay, endOfDay),
+    cal1: splitEventsForTodayAndTomorrow(e.parameter.cal1 || "", from, todayEnd, tomorrowStart, tomorrowEnd),
+    cal2: splitEventsForTodayAndTomorrow(e.parameter.cal2 || "", from, todayEnd, tomorrowStart, tomorrowEnd),
   };
   return ContentService.createTextOutput(JSON.stringify(payload))
     .setMimeType(ContentService.MimeType.JSON);
 }
 ```
 
-Click `Deploy` -> `New deployment` -> `Web app`:
+Click `Deploy` -> `New deployment` (or `Manage deployments` -> `Edit` -> `New version` when updating) -> `Web app`:
 Execute as: `Me`
 Who has access: `Anyone` (gated by SHARED_TOKEN)
 Copy the /exec URL into `calendarBridgeUrl`, SHARED_TOKEN into `calendarBridgeToken`, and both Calendar IDs into `calendarId1` / `calendarId2` in src/config.h.

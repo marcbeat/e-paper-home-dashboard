@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.8";     // Programme version, see change log at end
+String version = "1.9";     // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -241,8 +241,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
   int dateW = u8g2Fonts.getUTF8Width(Date_str.c_str());
   u8g2Fonts.setFont(u8g2_font_helvB18_tf);
   int timeW = u8g2Fonts.getUTF8Width((String(TXT_UPDATED) + Time_str).c_str());
-  int statusX = max(315, 12 + max(dateW, timeW) + 32);
-  if (statusX > SCREEN_WIDTH - 212) statusX = SCREEN_WIDTH - 212;
+  int statusW = max(204, max(dateW, timeW) + 14);
 
   display.firstPage();
   do
@@ -251,7 +250,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
     DisplayDisplayWindSection(5, 40, WxConditions[0].Winddir, WxConditions[0].Windspeed, 214, 190);
     DisplayAstronomySection(5, 430);             // Astronomy section Sun rise/set, Moon phase and Moon icon
     DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
-    DisplayStatusSection(statusX, 242, wifi_signal); // Wi-Fi signal strength and Battery voltage to the right of date/time
+    DisplayStatusSection(5, 330, statusW, wifi_signal); // Wi-Fi signal strength and Battery voltage below date/time
     DisplayForecastSection(372, 450);            // 3hr forecast boxes and right-aligned 3-day charts
     DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today's events for cal1 and cal2
   }
@@ -774,16 +773,17 @@ void StopWiFi() {
   WiFi.mode(WIFI_OFF);
 }
 //#########################################################################################
-void DisplayStatusSection(int x, int y, int rssi) {
-  int size = 204;
-  display.drawRect(x ,y , size, 108, GxEPD_BLACK);
-  display.drawLine(x ,y + 25, x + size, y + 25, GxEPD_BLACK);
-  display.drawLine(x + size / 2, y, x + size / 2, y + 25, GxEPD_BLACK);
+void DisplayStatusSection(int x, int y, int width, int rssi) {
+  display.drawRect(x, y, width, 108, GxEPD_BLACK);
+  display.drawLine(x, y + 25, x + width - 1, y + 25, GxEPD_BLACK);
+  display.drawLine(x + width / 2, y, x + width / 2, y + 25, GxEPD_BLACK);
+  int leftCenter = x + width / 4;
+  int rightCenter = x + (3 * width) / 4;
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-  drawString(x + 45, y + 10, TXT_WIFI, CENTER);
-  drawString(x + 150, y + 10, TXT_POWER, CENTER);
-  DrawRSSI(x + 25, y + 75, rssi);
-  DrawBattery(x + 130, y + 80);;
+  DrawCenteredText(leftCenter, y + 19, TXT_WIFI);
+  DrawCenteredText(rightCenter, y + 19, TXT_POWER);
+  DrawRSSI(leftCenter - 24, y + 75, rssi);
+  DrawBattery(rightCenter - 23, y + 80);
 }
 //#########################################################################################
 void DrawRSSI(int x, int y, int rssi) {
@@ -799,7 +799,7 @@ void DrawRSSI(int x, int y, int rssi) {
     xpos++;
   }
   display.fillRect(x, y - 1, 5, 1, GxEPD_BLACK);
-  drawString(x + 6,  y + 10, String(rssi) + "dBm", CENTER);
+  DrawCenteredText(x + 24, y + 18, String(rssi) + "dBm");
 }
 //#########################################################################################
 boolean SetupTime() {
@@ -859,7 +859,7 @@ void DrawBattery(int x, int y) {
     display.fillRect(x + 27, y - 18, 36 * percentage / 100.0, 11, GxEPD_BLACK);
     u8g2Fonts.setFont(u8g2_font_helvB10_tf);
     drawString(x + 5, y - 15, String(percentage) + "%", RIGHT);
-    drawString(x + 13, y + 5,  String(voltage, 2) + "v", CENTER);
+    DrawCenteredText(x + 23, y + 13, String(voltage, 2) + "v");
   }
 }
 //#########################################################################################
@@ -1318,4 +1318,8 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
    Version 1.8
    1. Added Google Calendar fetch/decode via Apps Script bridge (src/calendar.h)
       and wired ReceiveTodayCalendars() into setup()
+
+   Version 1.9
+   1. Moved Wi-Fi/battery status card below the date/time section and widened it
+      to match the date/time section width
 */

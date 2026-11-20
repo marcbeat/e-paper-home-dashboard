@@ -271,7 +271,6 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
     DisplayDisplayWindSection(5, 40, WxConditions[0].Winddir, WxConditions[0].Windspeed, 214, 190);
     DisplayAstronomySection(5, 430);             // Astronomy section Sun rise/set, Moon phase and Moon icon
     DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
-    DisplayStatusSection(5, 330, statusW, wifi_signal); // Wi-Fi signal strength and Battery voltage below date/time
     DisplayFuelSection(cardsX, cardsY, fuelW, cardsH);
     DisplayTravelSection(cardsX + fuelW + cardsGap, cardsY, travelW, cardsH);
     DisplayForecastSection(372, 450);            // 3hr forecast boxes and right-aligned 3-day charts
@@ -284,8 +283,7 @@ void DisplayGeneralInfoSection() {
   u8g2Fonts.setFont(u8g2_font_helvB14_tf);
   drawString(12, 20, "Version " + version + " (" + BUILD_GIT_SHA + ")", LEFT); // Programme version
   drawString(SCREEN_WIDTH / 2, 20,  title + " - " + City, CENTER);
-  // Uncomment the next line if the display of IP- and MAC-Adddress is wanted
-  //drawString(SCREEN_WIDTH - 150, 20, "IP=" + LocalIP + ",  MAC=" + WiFi.macAddress() ,RIGHT);
+  DrawTopBarStatus(SCREEN_WIDTH - 12, 27, wifi_signal);
   display.drawLine(5, 40, SCREEN_WIDTH - 8, 40, GxEPD_BLACK);
   u8g2Fonts.setFont(u8g2_font_helvB24_tf);
   drawString(12, 265, Date_str, LEFT);
@@ -1004,33 +1002,46 @@ void StopWiFi() {
   WiFi.mode(WIFI_OFF);
 }
 //#########################################################################################
-void DisplayStatusSection(int x, int y, int width, int rssi) {
-  display.drawRect(x, y, width, 108, GxEPD_BLACK);
-  display.drawLine(x, y + 25, x + width - 1, y + 25, GxEPD_BLACK);
-  display.drawLine(x + width / 2, y, x + width / 2, y + 25, GxEPD_BLACK);
-  int leftCenter = x + width / 4;
-  int rightCenter = x + (3 * width) / 4;
+/** Render Wi-Fi signal strength and battery status inline, right-aligned in the top bar. */
+void DrawTopBarStatus(int rightX, int baselineY, int rssi) {
   u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-  DrawCenteredText(leftCenter, y + 19, TXT_WIFI);
-  DrawCenteredText(rightCenter, y + 19, TXT_POWER);
-  DrawRSSI(leftCenter - 24, y + 75, rssi);
-  DrawBattery(rightCenter - 23, y + 80);
-}
-//#########################################################################################
-void DrawRSSI(int x, int y, int rssi) {
-  int WIFIsignal = 0;
-  int xpos = 1;
-  for (int _rssi = -100; _rssi <= rssi; _rssi = _rssi + 20) {
-    if (_rssi <= -20)  WIFIsignal = 30; //            <-20dbm displays 5-bars
-    if (_rssi <= -40)  WIFIsignal = 24; //  -40dbm to  -21dbm displays 4-bars
-    if (_rssi <= -60)  WIFIsignal = 18; //  -60dbm to  -41dbm displays 3-bars
-    if (_rssi <= -80)  WIFIsignal = 12; //  -80dbm to  -61dbm displays 2-bars
-    if (_rssi <= -100) WIFIsignal = 6;  // -100dbm to  -81dbm displays 1-bar
-    display.fillRect(x + xpos * 8, y - WIFIsignal, 7, WIFIsignal, GxEPD_BLACK);
-    xpos++;
+  int cursorRightX = rightX;
+
+  float voltage = analogRead(35) / 4096.0 * 7.46;
+  if (voltage > 1.0f) { // Only display if there is a valid battery reading
+    float pctRaw = 2836.9625 * pow(voltage, 4) - 43987.4889 * pow(voltage, 3) + 255233.8134 * pow(voltage, 2) - 656689.7123 * voltage + 632041.7303;
+    uint8_t percentage = (voltage >= 4.20f) ? 100 : (voltage <= 3.20f ? 0 : static_cast<uint8_t>(constrain(round(pctRaw), 0, 100)));
+    String batText = String(percentage) + "% " + String(voltage, 2) + "V";
+    int batTextW = u8g2Fonts.getUTF8Width(batText.c_str());
+    DrawRightAlignedText(cursorRightX, baselineY, batText);
+
+    const int batBodyW = 26, batH = 12, batNubW = 3, iconGap = 6;
+    int batX = cursorRightX - batTextW - iconGap - batNubW - batBodyW;
+    int batY = baselineY - 11;
+    display.drawRect(batX, batY, batBodyW, batH, GxEPD_BLACK);
+    display.fillRect(batX + batBodyW, batY + 3, batNubW, 6, GxEPD_BLACK);
+    int fillW = round((batBodyW - 4) * (percentage / 100.0f));
+    if (fillW > 0) display.fillRect(batX + 2, batY + 2, fillW, batH - 4, GxEPD_BLACK);
+    cursorRightX = batX - 16;
   }
-  display.fillRect(x, y - 1, 5, 1, GxEPD_BLACK);
-  DrawCenteredText(x + 24, y + 18, String(rssi) + "dBm");
+
+  String rssiText = String(rssi) + "dBm";
+  int rssiTextW = u8g2Fonts.getUTF8Width(rssiText.c_str());
+  DrawRightAlignedText(cursorRightX, baselineY, rssiText);
+
+  const int barW = 4, barStep = 6, numBars = 5, iconGap = 6;
+  int barsW = (numBars - 1) * barStep + barW;
+  int barsStartX = cursorRightX - rssiTextW - iconGap - barsW;
+  for (int b = 0; b < numBars; b++) {
+    int threshold = -100 + b * 20;
+    int barH = (b + 1) * 4;
+    int bx = barsStartX + b * barStep;
+    if (rssi >= threshold) {
+      display.fillRect(bx, baselineY - barH, barW, barH, GxEPD_BLACK);
+    } else {
+      display.fillRect(bx, baselineY - 2, barW, 2, GxEPD_BLACK);
+    }
+  }
 }
 //#########################################################################################
 boolean SetupTime() {
@@ -1075,23 +1086,6 @@ boolean UpdateLocalTime() {
   Date_str = day_output;
   Time_str = time_output;
   return true;
-}
-//#########################################################################################
-void DrawBattery(int x, int y) {
-  uint8_t percentage = 100;
-  float voltage = analogRead(35) / 4096.0 * 7.46;
-  if (voltage > 1 ) { // Only display if there is a valid reading
-    Serial.println("Voltage = " + String(voltage));
-    percentage = 2836.9625 * pow(voltage, 4) - 43987.4889 * pow(voltage, 3) + 255233.8134 * pow(voltage, 2) - 656689.7123 * voltage + 632041.7303;
-    if (voltage >= 4.20) percentage = 100;
-    if (voltage <= 3.20) percentage = 0;  // orig 3.5
-    display.drawRect(x + 25, y - 20, 40, 15, GxEPD_BLACK);
-    display.fillRect(x + 65, y - 16, 4, 6, GxEPD_BLACK);
-    display.fillRect(x + 27, y - 18, 36 * percentage / 100.0, 11, GxEPD_BLACK);
-    u8g2Fonts.setFont(u8g2_font_helvB10_tf);
-    drawString(x + 5, y - 15, String(percentage) + "%", RIGHT);
-    DrawCenteredText(x + 23, y + 13, String(voltage, 2) + "v");
-  }
 }
 //#########################################################################################
 // Symbols are drawn on a relative 10x10grid and 1 scale unit = 1 drawing unit

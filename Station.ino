@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.15";    // Programme version, see change log at end
+String version = "1.16";    // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -283,6 +283,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
     DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
     DisplayFuelSection(cardsX, cardsY, fuelW, cardsH);
     DisplayTravelSection(cardsX + fuelW + cardsGap, cardsY, travelW, cardsH);
+    DisplayNinaSection(5, 450, 355, 180);        // 2x2 hi-vis NINA warnings grid left of hourly forecast
     DisplayForecastSection(372, 450);            // 3hr forecast boxes and right-aligned 3-day charts
     DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today & tomorrow events for cal1 and cal2
   }
@@ -981,6 +982,155 @@ void DisplayTravelSection(int x, int y, int width, int height) {
   }
 }
 //#############################################################################################
+/** Draw a 14x12 monochrome warning triangle with a cut-out exclamation mark. */
+void DrawNinaWarningIcon(int centerX, int centerY, uint16_t color, uint16_t cutColor) {
+  display.fillTriangle(centerX, centerY - 6, centerX - 7, centerY + 5, centerX + 7, centerY + 5, color);
+  display.fillRect(centerX - 1, centerY - 2, 2, 4, cutColor);
+  display.fillRect(centerX - 1, centerY + 3, 2, 2, cutColor);
+}
+//#############################################################################################
+/** Wrap text on spaces up to maxLines, truncating the final line with "..." when needed. */
+void DrawWrappedCardText(int x, int y, int maxWidth, int lineHeight, int maxLines, const String& text) {
+  String rem = text;
+  rem.trim();
+  int line = 0;
+  while (rem.length() > 0 && line < maxLines) {
+    if (u8g2Fonts.getUTF8Width(rem.c_str()) <= maxWidth) {
+      u8g2Fonts.setCursor(x, y + line * lineHeight);
+      u8g2Fonts.print(rem);
+      return;
+    }
+    if (line == maxLines - 1) {
+      u8g2Fonts.setCursor(x, y + line * lineHeight);
+      u8g2Fonts.print(TruncateTextToWidth(rem, maxWidth));
+      return;
+    }
+    int splitPos = -1;
+    for (int i = 0; i < (int)rem.length(); i++) {
+      if (rem[i] == ' ') {
+        if (u8g2Fonts.getUTF8Width(rem.substring(0, i).c_str()) <= maxWidth) splitPos = i;
+        else break;
+      }
+    }
+    String lineStr;
+    if (splitPos > 0) {
+      lineStr = rem.substring(0, splitPos);
+      rem = rem.substring(splitPos + 1);
+      rem.trim();
+    } else {
+      lineStr = TruncateTextToWidth(rem, maxWidth);
+      rem = "";
+    }
+    u8g2Fonts.setCursor(x, y + line * lineHeight);
+    u8g2Fonts.print(lineStr);
+    line++;
+  }
+}
+//#############################################################################################
+/** Return localized short severity tag for a NINA severityRank. */
+String FormatNinaSeverityLabel(int rank) {
+  switch (rank) {
+    case 4:  return TXT_NINA_SEV_EXTREME;
+    case 3:  return TXT_NINA_SEV_SEVERE;
+    case 2:  return TXT_NINA_SEV_MODERATE;
+    case 1:  return TXT_NINA_SEV_MINOR;
+    default: return "";
+  }
+}
+//#############################################################################################
+/** Render a single hi-vis monochrome NINA warning card sized (w x h) at (x, y). */
+void DrawNinaCard(int x, int y, int w, int h, const NinaWarning& warn) {
+  const int headerH = 22;
+  const int padX = 7;
+  const bool highSeverity = (warn.severityRank >= 3);
+
+  if (highSeverity) {
+    display.fillRect(x, y, w, h, GxEPD_BLACK);
+    if (warn.severityRank == 4) {
+      display.drawRect(x + 2, y + 2, w - 4, h - 4, GxEPD_WHITE);
+      display.drawLine(x + 2, y + headerH, x + w - 3, y + headerH, GxEPD_WHITE);
+    } else {
+      display.drawLine(x, y + headerH, x + w - 1, y + headerH, GxEPD_WHITE);
+    }
+  } else {
+    display.drawRect(x, y, w, h, GxEPD_BLACK);
+    display.drawRect(x + 1, y + 1, w - 2, h - 2, GxEPD_BLACK);
+    display.fillRect(x, y, w, headerH, GxEPD_BLACK);
+  }
+
+  // Header strip: white warning icon, provider on left, severity tag on right
+  DrawNinaWarningIcon(x + 13, y + 11, GxEPD_WHITE, GxEPD_BLACK);
+  u8g2Fonts.setFont(u8g2_font_helvB08_te);
+  u8g2Fonts.setForegroundColor(GxEPD_WHITE);
+  u8g2Fonts.setBackgroundColor(GxEPD_BLACK);
+
+  String sevLabel = FormatNinaSeverityLabel(warn.severityRank);
+  int sevW = (sevLabel.length() > 0) ? u8g2Fonts.getUTF8Width(sevLabel.c_str()) + 6 : 0;
+  int provX = x + 24;
+  int provMaxW = max(0, (x + w - padX - sevW) - provX);
+  u8g2Fonts.setCursor(provX, y + 15);
+  u8g2Fonts.print(TruncateTextToWidth(warn.provider, provMaxW));
+  if (sevLabel.length() > 0) {
+    DrawRightAlignedText(x + w - padX, y + 15, sevLabel);
+  }
+
+  // Body headline (white-on-black for Severe/Extreme, black-on-white for Moderate/Minor)
+  if (!highSeverity) {
+    u8g2Fonts.setForegroundColor(GxEPD_BLACK);
+    u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+  }
+  u8g2Fonts.setFont(u8g2_font_helvB10_te);
+  DrawWrappedCardText(x + padX, y + headerH + 17, w - padX * 2, 17, 3, warn.headline);
+
+  // Restore default black-on-white font colors
+  u8g2Fonts.setForegroundColor(GxEPD_BLACK);
+  u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+}
+//#############################################################################################
+/** Render up to 4 NINA warning cards in a 2x2 grid or a status card when empty/unconfigured. */
+void DisplayNinaSection(int x, int y, int width, int height) {
+  const int padX = 12;
+  if (!HasConfiguredNina()) {
+    DrawInfoCardHeader(x, y, width, height, TXT_NINA_TITLE);
+    u8g2Fonts.setFont(u8g2_font_helvB12_te);
+    u8g2Fonts.setCursor(x + padX, y + 66);
+    u8g2Fonts.print(TXT_NOT_CONF);
+    return;
+  }
+
+  if (!ninaData.valid) {
+    DrawInfoCardHeader(x, y, width, height, TXT_NINA_TITLE);
+    u8g2Fonts.setFont(u8g2_font_helvB12_te);
+    DrawCenteredText(x + width / 2, y + 114, TruncateTextToWidth(TXT_NINA_FETCH_ERR, width - padX * 2));
+    return;
+  }
+
+  if (ninaData.totalCount == 0) {
+    DrawInfoCardHeader(x, y, width, height, TXT_NINA_TITLE);
+    u8g2Fonts.setFont(u8g2_font_helvB12_te);
+    DrawCenteredText(x + width / 2, y + 114, TruncateTextToWidth(TXT_NINA_NO_WARNINGS, width - padX * 2));
+    return;
+  }
+
+  const int gap = 8;
+  const int cardW = (width - gap) / 2;
+  const int cardH = (height - gap) / 2;
+  const int count = min(ninaData.totalCount, MAX_NINA_WARNINGS);
+  for (int i = 0; i < count; i++) {
+    int col = i % 2;
+    int row = i / 2;
+    int cx = x + col * (cardW + gap);
+    int cy = y + row * (cardH + gap);
+    DrawNinaCard(cx, cy, cardW, cardH, ninaData.warnings[i]);
+  }
+
+  if (ninaData.totalCount > MAX_NINA_WARNINGS) {
+    u8g2Fonts.setFont(u8g2_font_helvB10_te);
+    String overflow = "+" + String(ninaData.totalCount - MAX_NINA_WARNINGS) + " " + TXT_NINA_MORE;
+    DrawCenteredText(x + width / 2, y + height + 18, overflow);
+  }
+}
+//#############################################################################################
 int iconScale(uint8_t IconSize, int& linesize) {
   if (IconSize == SmallIcon) {
     linesize = 1;
@@ -1664,4 +1814,9 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
   1. Move Wi-Fi signal strength and battery status inline, right-aligned in the top bar
   2. Compress the astronomy card into a 3-column horizontal layout below Date/Time
      with sunrise/sunset icons, smaller 40px moon phase disc, and smaller phase text
+
+  Version 1.16
+  1. Added NINA public warning API fetcher (src/nina.h) configured via ninaApiArs
+  2. Rendered up to 4 severity-prioritized hi-vis B/W warning cards in a 2x2 grid
+     to the left of the 3-hour weather forecast with "+N weitere" overflow support
 */

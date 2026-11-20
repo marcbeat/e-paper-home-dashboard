@@ -90,3 +90,13 @@ const String TXT_TRAFFIC_DELAY = "Verzögerung";
 const String TXT_TRAFFIC_HEAVY = "Viel Verkehr";
 const String TXT_NOT_CONF      = "Nicht konfiguriert";
 
+//NINA Warnings
+const String TXT_NINA_TITLE        = "NINA Warnungen";
+const String TXT_NINA_NO_WARNINGS  = "Keine aktuellen Warnungen";
+const String TXT_NINA_FETCH_ERR    = "NINA-Abruf fehlgeschlagen";
+const String TXT_NINA_MORE         = "weitere";
+const String TXT_NINA_SEV_EXTREME  = "EXTREM";
+const String TXT_NINA_SEV_SEVERE   = "SCHWER";
+const String TXT_NINA_SEV_MODERATE = "MITTEL";
+const String TXT_NINA_SEV_MINOR    = "GERING";
+

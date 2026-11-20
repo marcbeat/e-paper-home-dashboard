@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.9";     // Programme version, see change log at end
+String version = "1.10";    // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -258,6 +258,13 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
   u8g2Fonts.setFont(u8g2_font_helvB18_tf);
   int timeW = u8g2Fonts.getUTF8Width((String(TXT_UPDATED) + Time_str).c_str());
   int statusW = max(204, max(dateW, timeW) + 14);
+  int cardsX = max(372, 5 + statusW + 14);
+  int cardsY = 238;
+  int cardsH = 200;
+  int cardsGap = 12;
+  int cardsTotalW = 1296 - cardsX;
+  int fuelW = (cardsTotalW - cardsGap) * 55 / 100;
+  int travelW = cardsTotalW - cardsGap - fuelW;
 
   display.firstPage();
   do
@@ -267,6 +274,8 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
     DisplayAstronomySection(5, 430);             // Astronomy section Sun rise/set, Moon phase and Moon icon
     DisplayMainWeatherSection(221, 40);          // Top row cards for conditions, temperature, pressure, precipitation
     DisplayStatusSection(5, 330, statusW, wifi_signal); // Wi-Fi signal strength and Battery voltage below date/time
+    DisplayFuelSection(cardsX, cardsY, fuelW, cardsH);
+    DisplayTravelSection(cardsX + fuelW + cardsGap, cardsY, travelW, cardsH);
     DisplayForecastSection(372, 450);            // 3hr forecast boxes and right-aligned 3-day charts
     DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today's events for cal1 and cal2
   }
@@ -607,6 +616,12 @@ void DrawCenteredText(int centerX, int baselineY, const String& text) {
   u8g2Fonts.print(text);
 }
 //#############################################################################################
+void DrawRightAlignedText(int rightX, int baselineY, const String& text) {
+  int w = u8g2Fonts.getUTF8Width(text.c_str());
+  u8g2Fonts.setCursor(rightX - w, baselineY);
+  u8g2Fonts.print(text);
+}
+//#############################################################################################
 String TruncateTextToWidth(String text, int maxWidth) {
   if (u8g2Fonts.getUTF8Width(text.c_str()) <= maxWidth) return text;
   while (text.length() > 1 && u8g2Fonts.getUTF8Width((text + "...").c_str()) > maxWidth) {
@@ -675,6 +690,127 @@ void DisplayCalendarSection(int x, int y, int width, int height) {
 
   DrawCalendarListCard(x, y + cardTopOffset, colW, colH, "Piet", cal1Events, cal1EventCount, configured);
   DrawCalendarListCard(x + colW + colGap, y + cardTopOffset, colW, colH, "Nati", cal2Events, cal2EventCount, configured);
+}
+//#############################################################################################
+/** Draw outer card frame, 36px header divider, and centered helvB14_te title. */
+void DrawInfoCardHeader(int x, int y, int width, int height, const String& title) {
+  const int headerH = 36;
+  display.drawRect(x, y, width, height, GxEPD_BLACK);
+  display.drawLine(x, y + headerH, x + width - 1, y + headerH, GxEPD_BLACK);
+  u8g2Fonts.setFont(u8g2_font_helvB14_te);
+  DrawCenteredText(x + width / 2, y + 25, title);
+}
+//#############################################################################################
+/** Render Tankerkoenig fuel prices (E5, E10, Diesel in EUR/L) for up to 3 configured stations. */
+void DisplayFuelSection(int x, int y, int width, int height) {
+  DrawInfoCardHeader(x, y, width, height, TXT_FUEL_PRICES);
+
+  const int padX = 12;
+  if (!HasConfiguredFuelStations()) {
+    u8g2Fonts.setFont(u8g2_font_helvB12_te);
+    u8g2Fonts.setCursor(x + padX, y + 66);
+    u8g2Fonts.print(TXT_NOT_CONF);
+    return;
+  }
+
+  const char* headers[3] = { "E5 €/L", "E10 €/L", "Diesel €/L" };
+  u8g2Fonts.setFont(u8g2_font_helvB14_te);
+  int minPriceW = u8g2Fonts.getUTF8Width("8.888");
+  u8g2Fonts.setFont(u8g2_font_helvB12_te);
+  int colW[3];
+  for (int c = 0; c < 3; c++) {
+    colW[c] = max(minPriceW, (int)u8g2Fonts.getUTF8Width(headers[c]));
+  }
+
+  const int colGap = 18;
+  int colRight[3];
+  colRight[2] = x + width - padX;
+  colRight[1] = colRight[2] - colW[2] - colGap;
+  colRight[0] = colRight[1] - colW[1] - colGap;
+
+  for (int c = 0; c < 3; c++) {
+    DrawRightAlignedText(colRight[c], y + 58, headers[c]);
+  }
+
+  const int priceAreaLeft = colRight[0] - colW[0];
+  const int nameMaxW = max(60, priceAreaLeft - colGap - (x + padX));
+
+  u8g2Fonts.setFont(u8g2_font_helvB14_te);
+  for (int i = 0; i < MAX_FUEL_STATIONS; i++) {
+    if (!fuelStations[i].configured) continue;
+    int rowY = y + 92 + i * 36;
+    u8g2Fonts.setCursor(x + padX, rowY);
+    u8g2Fonts.print(TruncateTextToWidth(fuelStations[i].name, nameMaxW));
+
+    if (!fuelStations[i].valid) {
+      for (int c = 0; c < 3; c++) {
+        DrawRightAlignedText(colRight[c], rowY, "--");
+      }
+    } else if (!fuelStations[i].isOpen) {
+      DrawCenteredText((priceAreaLeft + colRight[2]) / 2, rowY, TXT_FUEL_CLOSED);
+    } else {
+      float prices[3] = { fuelStations[i].e5, fuelStations[i].e10, fuelStations[i].diesel };
+      for (int c = 0; c < 3; c++) {
+        String label = (prices[c] > 0.0f) ? String(prices[c], 3) : String("--");
+        DrawRightAlignedText(colRight[c], rowY, label);
+      }
+    }
+  }
+}
+//#############################################################################################
+/** Format a driving duration in minutes as "--", "X min", or "H h M m". */
+String FormatTravelDuration(int minutes) {
+  if (minutes < 0) return "--";
+  if (minutes < 60) return String(minutes) + " min";
+  return String(minutes / 60) + " h " + String(minutes % 60) + " m";
+}
+//#############################################################################################
+/** Render Mapbox driving durations and live traffic status for up to 2 destinations. */
+void DisplayTravelSection(int x, int y, int width, int height) {
+  DrawInfoCardHeader(x, y, width, height, TXT_TRAVEL_TIMES);
+
+  const int padX = 12;
+  if (!HasConfiguredTravelDests()) {
+    u8g2Fonts.setFont(u8g2_font_helvB12_te);
+    u8g2Fonts.setCursor(x + padX, y + 66);
+    u8g2Fonts.print(TXT_NOT_CONF);
+    return;
+  }
+
+  for (int i = 0; i < MAX_TRAVEL_DESTS; i++) {
+    if (!travelRoutes[i].configured) continue;
+    int blockY = y + 66 + i * 74;
+
+    u8g2Fonts.setFont(u8g2_font_helvB14_te);
+    String durStr = travelRoutes[i].valid
+                      ? FormatTravelDuration(travelRoutes[i].durationMin)
+                      : String("--");
+    int durW = u8g2Fonts.getUTF8Width(durStr.c_str());
+    int nameMaxW = max(60, width - padX * 2 - durW - 12);
+
+    u8g2Fonts.setCursor(x + padX, blockY);
+    u8g2Fonts.print(TruncateTextToWidth(travelRoutes[i].name, nameMaxW));
+    DrawRightAlignedText(x + width - padX, blockY, durStr);
+
+    String trafficStr;
+    if (!travelRoutes[i].valid) {
+      trafficStr = "--";
+    } else if (travelRoutes[i].delayMin < 0) {
+      trafficStr = "";
+    } else if (travelRoutes[i].delayMin <= 1) {
+      trafficStr = TXT_TRAFFIC_CLEAR;
+    } else if (travelRoutes[i].delayMin < 10) {
+      trafficStr = "+" + String(travelRoutes[i].delayMin) + " min " + TXT_TRAFFIC_DELAY;
+    } else {
+      trafficStr = "+" + String(travelRoutes[i].delayMin) + " min " + TXT_TRAFFIC_HEAVY;
+    }
+
+    if (trafficStr.length() > 0) {
+      u8g2Fonts.setFont(u8g2_font_helvB12_te);
+      u8g2Fonts.setCursor(x + padX, blockY + 24);
+      u8g2Fonts.print(TruncateTextToWidth(trafficStr, width - padX * 2));
+    }
+  }
 }
 //#############################################################################################
 int iconScale(uint8_t IconSize, int& linesize) {
@@ -1338,4 +1474,10 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
    Version 1.9
    1. Moved Wi-Fi/battery status card below the date/time section and widened it
       to match the date/time section width
+
+   Version 1.10
+   1. Added Tankerkoenig fuel price fetcher (src/fuel.h) and Mapbox travel
+      time fetcher (src/travel.h)
+   2. Added side-by-side Fuel Prices and Travel Times cards to the right of
+      the Date/Time and Wi-Fi/Power status section
 */

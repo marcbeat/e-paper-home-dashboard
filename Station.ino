@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.13";    // Programme version, see change log at end
+String version = "1.14";    // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -133,10 +133,8 @@ float temperature_readings[max_readings] = {0};
 float rain_readings[max_readings]        = {0};
 float snow_readings[max_readings]        = {0};
 
-CalendarEvent cal1Events[MAX_CALENDAR_EVENTS];
-CalendarEvent cal2Events[MAX_CALENDAR_EVENTS];
-int cal1EventCount = 0;
-int cal2EventCount = 0;
+CalendarData cal1Data;
+CalendarData cal2Data;
 FuelStationData fuelStations[MAX_FUEL_STATIONS];
 TravelRouteData travelRoutes[MAX_TRAVEL_DESTS];
 
@@ -174,7 +172,7 @@ void setup() {
         if (strlen(calendarBridgeUrl) > 0) {
           bool RxCalendar = false;
           for (byte calAttempt = 1; !RxCalendar && calAttempt <= 2; calAttempt++) {
-            RxCalendar = ReceiveTodayCalendars(true);
+            RxCalendar = ReceiveCalendars(true);
           }
           if (!RxCalendar) AddToEventLog("*** Failed to Rx Calendar data ***");
         }
@@ -277,7 +275,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
     DisplayFuelSection(cardsX, cardsY, fuelW, cardsH);
     DisplayTravelSection(cardsX + fuelW + cardsGap, cardsY, travelW, cardsH);
     DisplayForecastSection(372, 450);            // 3hr forecast boxes and right-aligned 3-day charts
-    DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today's events for cal1 and cal2
+    DisplayCalendarSection(5, 674, 635, 290);    // Bottom-left today & tomorrow events for cal1 and cal2
   }
   while (display.nextPage());
 }
@@ -658,7 +656,57 @@ String TruncateTextToWidth(String text, int maxWidth) {
   return text + "...";
 }
 //#############################################################################################
-void DrawCalendarListCard(int x, int y, int w, int h, const char* title, const CalendarEvent events[], int count, bool configured) {
+void DrawCalendarSubheader(int x, int rowY, int w, int padX, const String& label) {
+  u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+  u8g2Fonts.setCursor(x + padX, rowY);
+  u8g2Fonts.print(label);
+  int lineX = x + padX + u8g2Fonts.getUTF8Width(label.c_str()) + 6;
+  if (lineX < x + w - padX) {
+    display.drawLine(lineX, rowY - 4, x + w - padX, rowY - 4, GxEPD_BLACK);
+  }
+  u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+}
+//#############################################################################################
+void DrawCalendarEventRow(int x, int rowY, int padX, int timeColW, int titleMaxW, const CalendarEvent& ev) {
+  String timeLabel = ev.allDay ? TXT_ALL_DAY : ev.time;
+  u8g2Fonts.setCursor(x + padX, rowY);
+  u8g2Fonts.print(timeLabel);
+  u8g2Fonts.setCursor(x + padX + timeColW, rowY);
+  u8g2Fonts.print(TruncateTextToWidth(ev.title, titleMaxW));
+}
+//#############################################################################################
+bool DrawCalendarDaySection(int x, int startY, int w, int rowStep, int padX, int timeColW, int titleMaxW,
+                            int maxRows, int& rowIdx, const String& label, const CalendarDayEvents& day) {
+  int avail = maxRows - rowIdx - 1;
+  if (avail <= 0) return false;
+
+  DrawCalendarSubheader(x, startY + rowIdx * rowStep, w, padX, label);
+  rowIdx++;
+
+  if (day.count == 0) {
+    u8g2Fonts.setCursor(x + padX, startY + rowIdx * rowStep);
+    u8g2Fonts.print(TXT_NO_EVENTS);
+    rowIdx++;
+    return false;
+  }
+
+  bool overflow = day.count > avail;
+  int visibleRows = overflow ? avail - 1 : day.count;
+  for (int i = 0; i < visibleRows; i++) {
+    DrawCalendarEventRow(x, startY + (rowIdx + i) * rowStep, padX, timeColW, titleMaxW, day.events[i]);
+  }
+  rowIdx += visibleRows;
+
+  if (overflow) {
+    u8g2Fonts.setCursor(x + padX, startY + rowIdx * rowStep);
+    u8g2Fonts.print("+" + String(day.count - visibleRows) + " " + TXT_MORE_EVENTS);
+    rowIdx++;
+    return true;
+  }
+  return false;
+}
+//#############################################################################################
+void DrawCalendarListCard(int x, int y, int w, int h, const char* title, const CalendarData& data, bool configured) {
   const int headerH = 36;
   display.drawRect(x, y, w, h, GxEPD_BLACK);
   display.drawLine(x, y + headerH, x + w - 1, y + headerH, GxEPD_BLACK);
@@ -676,35 +724,21 @@ void DrawCalendarListCard(int x, int y, int w, int h, const char* title, const C
     u8g2Fonts.print(TXT_CAL_NOT_CONF);
     return;
   }
-  if (count == 0) {
-    u8g2Fonts.setCursor(x + padX, startY);
-    u8g2Fonts.print(TXT_NO_EVENTS);
-    return;
-  }
 
   const int timeColW = 58;
   const int titleMaxW = w - padX * 2 - timeColW;
-  bool overflow = count > maxRows;
-  int visibleRows = overflow ? maxRows - 1 : count;
+  int rowIdx = 0;
+  bool todayOverflow = DrawCalendarDaySection(x, startY, w, rowStep, padX, timeColW, titleMaxW,
+                                              maxRows, rowIdx, TXT_TODAY, data.today);
+  if (todayOverflow) return;
 
-  for (int i = 0; i < visibleRows; i++) {
-    int rowY = startY + i * rowStep;
-    String timeLabel = events[i].allDay ? TXT_ALL_DAY : events[i].time;
-    u8g2Fonts.setCursor(x + padX, rowY);
-    u8g2Fonts.print(timeLabel);
-    u8g2Fonts.setCursor(x + padX + timeColW, rowY);
-    u8g2Fonts.print(TruncateTextToWidth(events[i].title, titleMaxW));
-  }
-  if (overflow) {
-    int rowY = startY + visibleRows * rowStep;
-    u8g2Fonts.setCursor(x + padX, rowY);
-    u8g2Fonts.print("+" + String(count - visibleRows) + " weitere");
-  }
+  DrawCalendarDaySection(x, startY, w, rowStep, padX, timeColW, titleMaxW,
+                         maxRows, rowIdx, TXT_TOMORROW, data.tomorrow);
 }
 //#############################################################################################
 void DisplayCalendarSection(int x, int y, int width, int height) {
   u8g2Fonts.setFont(u8g2_font_helvB18_tf);
-  DrawCenteredText(x + width / 2, y + 8, TXT_TODAY_EVENTS);
+  DrawCenteredText(x + width / 2, y + 8, TXT_CAL_EVENTS);
 
   const int cardTopOffset = 30;
   const int colGap = 12;
@@ -712,8 +746,8 @@ void DisplayCalendarSection(int x, int y, int width, int height) {
   const int colH = height - cardTopOffset;
   const bool configured = (strlen(calendarBridgeUrl) > 0);
 
-  DrawCalendarListCard(x, y + cardTopOffset, colW, colH, "Piet", cal1Events, cal1EventCount, configured);
-  DrawCalendarListCard(x + colW + colGap, y + cardTopOffset, colW, colH, "Nati", cal2Events, cal2EventCount, configured);
+  DrawCalendarListCard(x, y + cardTopOffset, colW, colH, "Piet", cal1Data, configured);
+  DrawCalendarListCard(x + colW + colGap, y + cardTopOffset, colW, colH, "Nati", cal2Data, configured);
 }
 //#############################################################################################
 /** Draw outer card frame, 36px header divider, and centered helvB14_te title. */
@@ -1536,4 +1570,8 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
   1. Sort fuel stations ascending by configurable fuel type (fuelSortBy: e5/e10/diesel)
   2. Move EUR/L unit into a right-aligned Price/Preis [€/L] header above station names
      and show an ascending sort indicator on the active fuel column header
+
+  Version 1.14
+  1. Display today's remaining and tomorrow's events stacked under "Heute" and "Morgen"
+     labels inside each calendar card, passing local NTP datetime to the Apps Script bridge
 */

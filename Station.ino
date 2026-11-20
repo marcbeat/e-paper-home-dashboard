@@ -91,7 +91,10 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 
 
 //################  VERSION  ##################################################
-String version = "1.4";     // Programme version, see change log at end
+#ifndef BUILD_GIT_SHA
+#define BUILD_GIT_SHA "unknown"
+#endif
+String version = "1.5";     // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 boolean LargeIcon = true, SmallIcon = false;
@@ -235,7 +238,7 @@ void DisplayWeather() {                          // 12.48" e-paper display is 13
 //#########################################################################################
 void DisplayGeneralInfoSection() {
   u8g2Fonts.setFont(u8g2_font_helvB14_tf);
-  drawString(12, 20, "[Version: " + version + "]", LEFT); // Programme version
+  drawString(12, 20, "Version " + version + " (" + BUILD_GIT_SHA + ")", LEFT); // Programme version
   drawString(SCREEN_WIDTH / 2, 20, City, CENTER);
   // Uncomment the next line if the display of IP- and MAC-Adddress is wanted
   //drawString(SCREEN_WIDTH - 150, 20, "IP=" + LocalIP + ",  MAC=" + WiFi.macAddress() ,RIGHT);
@@ -1149,4 +1152,8 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
    Version 1.4
    1. Replaced large wind compass with compact top-row "Wind" card showing
       tornado icon + wind speed and compass icon + direction acronym/degrees
+
+   Version 1.5
+   1. Display build version and short commit SHA in the top row as
+      "Version <version> (<sha>)"
 */

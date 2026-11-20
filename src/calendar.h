@@ -73,6 +73,13 @@ String FormatLocalIsoDateTime() {
   return result;
 }
 
+/** Return true if a calendar JSON node is an object containing today and tomorrow arrays. */
+bool HasValidCalendarSchema(JsonVariantConst val) {
+  return val.is<JsonObjectConst>() &&
+         val["today"].is<JsonArrayConst>() &&
+         val["tomorrow"].is<JsonArrayConst>();
+}
+
 /** Populate today and tomorrow event lists for a single calendar JSON object. */
 void PopulateCalendarData(JsonObjectConst obj, CalendarData& data) {
   PopulateEventList(obj["today"].as<JsonArrayConst>(), data.today.events, data.today.count);
@@ -90,6 +97,10 @@ bool DecodeCalendarJson(const String& payload, bool print) {
   }
   if (!doc["error"].isNull()) {
     Serial.println("Calendar bridge error: " + String(doc["error"].as<const char*>()));
+    return false;
+  }
+  if (!HasValidCalendarSchema(doc["cal1"]) || !HasValidCalendarSchema(doc["cal2"])) {
+    Serial.println("Calendar JSON schema mismatch: expected cal1/cal2 objects with today/tomorrow arrays");
     return false;
   }
   PopulateCalendarData(doc["cal1"].as<JsonObjectConst>(), cal1Data);

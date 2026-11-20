@@ -58,6 +58,7 @@ const char* calendarId2      = ""; // Google Calendar ID for cal2 (must be share
 const char* tankerkoenigApiKey  = "";
 const char* fuelStationIds[3]   = { "", "", "" }; // Up to 3 station UUIDs
 const char* fuelStationNames[3] = { "", "", "" }; // Short display labels (e.g. "Aral", "Shell", "Jet")
+const char* fuelSortBy          = "e5";           // Fuel type to sort stations by ascending ("e5", "e10", or "diesel")
 
 // Travel times (Mapbox Directions API: https://docs.mapbox.com/api/navigation/directions/)
 const char* mapboxAccessToken   = "";

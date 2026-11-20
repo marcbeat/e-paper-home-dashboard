@@ -78,8 +78,9 @@ const String TXT_ALL_DAY      = "Ganzt.";
 const String TXT_CAL_NOT_CONF = "Nicht konfiguriert";
 
 //Fuel & Travel
-const String TXT_FUEL_PRICES   = "Kraftstoffpreise";
-const String TXT_FUEL_CLOSED   = "geschlossen";
+const String TXT_FUEL_PRICES       = "Kraftstoffpreise";
+const String TXT_FUEL_PRICE_HEADER = "Preis [€/L]";
+const String TXT_FUEL_CLOSED       = "geschlossen";
 const String TXT_TRAVEL_TIMES  = "Fahrzeiten";
 const String TXT_TRAFFIC_CLEAR = "Freie Fahrt";
 const String TXT_TRAFFIC_DELAY = "Verzögerung";

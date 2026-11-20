@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.12";    // Programme version, see change log at end
+String version = "1.13";    // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -737,13 +737,19 @@ void DisplayFuelSection(int x, int y, int width, int height) {
     return;
   }
 
-  const char* headers[3] = { "E5 €/L", "E10 €/L", "Diesel €/L" };
+  const char* headers[3] = { "E5", "E10", "Diesel" };
+  const int sortCol = static_cast<int>(ParseFuelSortType(fuelSortBy));
+  const int triW = 8;
+  const int triGap = 5;
+
   u8g2Fonts.setFont(u8g2_font_helvB14_te);
   int minPriceW = u8g2Fonts.getUTF8Width("8.888");
   u8g2Fonts.setFont(u8g2_font_helvB12_te);
   int colW[3];
   for (int c = 0; c < 3; c++) {
-    colW[c] = max(minPriceW, (int)u8g2Fonts.getUTF8Width(headers[c]));
+    int headerW = u8g2Fonts.getUTF8Width(headers[c]);
+    if (c == sortCol) headerW += triW + triGap;
+    colW[c] = max(minPriceW, headerW);
   }
 
   const int colGap = 18;
@@ -752,12 +758,23 @@ void DisplayFuelSection(int x, int y, int width, int height) {
   colRight[1] = colRight[2] - colW[2] - colGap;
   colRight[0] = colRight[1] - colW[1] - colGap;
 
+  const int headerY = y + 58;
   for (int c = 0; c < 3; c++) {
-    DrawRightAlignedText(colRight[c], y + 58, headers[c]);
+    DrawRightAlignedText(colRight[c], headerY, headers[c]);
+    if (c == sortCol) {
+      int textW = u8g2Fonts.getUTF8Width(headers[c]);
+      int triRightX = colRight[c] - textW - triGap;
+      int triLeftX  = triRightX - triW;
+      int triMidX   = (triLeftX + triRightX) / 2;
+      display.fillTriangle(triMidX, headerY - 9, triLeftX, headerY - 2, triRightX, headerY - 2, GxEPD_BLACK);
+    }
   }
 
   const int priceAreaLeft = colRight[0] - colW[0];
   const int nameMaxW = max(0, priceAreaLeft - colGap - (x + padX));
+  if (nameMaxW > 0) {
+    DrawRightAlignedText(x + padX + nameMaxW, headerY, TruncateTextToWidth(TXT_FUEL_PRICE_HEADER, nameMaxW));
+  }
 
   u8g2Fonts.setFont(u8g2_font_helvB14_te);
   int row = 0;
@@ -1514,4 +1531,9 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
 
   Version 1.12
   1. Show 0% / 0.00 mm fallback and 3-hour window label in the precipitation card
+
+  Version 1.13
+  1. Sort fuel stations ascending by configurable fuel type (fuelSortBy: e5/e10/diesel)
+  2. Move EUR/L unit into a right-aligned Price/Preis [€/L] header above station names
+     and show an ascending sort indicator on the active fuel column header
 */

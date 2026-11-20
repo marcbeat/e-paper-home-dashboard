@@ -10,6 +10,12 @@
 static_assert(sizeof(fuelStationIds) / sizeof(fuelStationIds[0]) >= MAX_FUEL_STATIONS, "fuelStationIds too small");
 static_assert(sizeof(fuelStationNames) / sizeof(fuelStationNames[0]) >= MAX_FUEL_STATIONS, "fuelStationNames too small");
 
+enum FuelType {
+  FUEL_E5 = 0,
+  FUEL_E10 = 1,
+  FUEL_DIESEL = 2
+};
+
 struct FuelStationData {
   String name;
   bool configured;
@@ -22,6 +28,60 @@ struct FuelStationData {
 
 extern FuelStationData fuelStations[MAX_FUEL_STATIONS];
 String UrlEncode(const String& value);
+
+/** Parse fuelSortBy preference ("e5", "e10", "diesel"), defaulting to FUEL_E5. */
+inline FuelType ParseFuelSortType(const char* sortBy) {
+  if (sortBy == nullptr) return FUEL_E5;
+  String s(sortBy);
+  s.trim();
+  s.toLowerCase();
+  if (s == "e10") return FUEL_E10;
+  if (s == "diesel") return FUEL_DIESEL;
+  return FUEL_E5;
+}
+
+/** Return the price for the given FuelType from a FuelStationData entry. */
+inline float GetFuelPriceByType(const FuelStationData& station, FuelType type) {
+  switch (type) {
+    case FUEL_E10:    return station.e10;
+    case FUEL_DIESEL: return station.diesel;
+    case FUEL_E5:
+    default:          return station.e5;
+  }
+}
+
+/** Return sort priority tier: 0=open+priced, 1=open+missing price, 2=closed, 3=invalid, 4=unconfigured. */
+inline int FuelStationSortRank(const FuelStationData& station, FuelType sortType) {
+  if (!station.configured) return 4;
+  if (!station.valid) return 3;
+  if (!station.isOpen) return 2;
+  if (GetFuelPriceByType(station, sortType) <= 0.0f) return 1;
+  return 0;
+}
+
+/** Return true if station a should appear strictly before station b when sorting ascending by sortType. */
+inline bool FuelStationComesBefore(const FuelStationData& a, const FuelStationData& b, FuelType sortType) {
+  int rankA = FuelStationSortRank(a, sortType);
+  int rankB = FuelStationSortRank(b, sortType);
+  if (rankA != rankB) return rankA < rankB;
+  if (rankA == 0) {
+    return GetFuelPriceByType(a, sortType) < GetFuelPriceByType(b, sortType);
+  }
+  return false;
+}
+
+/** Stably sort fuelStations[] ascending by the selected fuel type. */
+inline void SortFuelStations(FuelType sortType) {
+  for (int i = 1; i < MAX_FUEL_STATIONS; i++) {
+    FuelStationData key = fuelStations[i];
+    int j = i - 1;
+    while (j >= 0 && FuelStationComesBefore(key, fuelStations[j], sortType)) {
+      fuelStations[j + 1] = fuelStations[j];
+      j--;
+    }
+    fuelStations[j + 1] = key;
+  }
+}
 
 /** Reset all fuel station slots to their configured defaults and -1.0f sentinel prices. */
 inline void ResetFuelStations() {
@@ -93,6 +153,8 @@ inline bool DecodeFuelJson(const String& payload, bool print) {
       validCount++;
     }
   }
+
+  SortFuelStations(ParseFuelSortType(fuelSortBy));
 
   if (print) {
     Serial.printf("Decoded fuel prices: %d station(s)\n", validCount);

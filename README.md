@@ -72,6 +72,16 @@ Copy the /exec URL into `calendarBridgeUrl`, SHARED_TOKEN into `calendarBridgeTo
 
 ---
 
+## NINA Warnings Integration
+
+Displays active German civil protection and severe weather alerts from the Bundesamt für Bevölkerungsschutz (BBK) **NINA public API** (`https://warnung.bund.de/api31/dashboard/{ARS}.json`, [OpenAPI specification](https://nina.api.bund.dev/openapi.yaml)).
+
+- **Configuration:** Set `ninaApiArs` in `src/config.h` to your 12-digit Kreis-level *Amtlicher Regionalschlüssel* (ARS, ending in `0000000` — e.g. `"059130000000"` for Dortmund). Leave empty (`""`) to disable NINA warnings.
+- **Finding a Regional Key (ARS):** Regional keys can be obtained through [dcat-ap.de/def/politicalGeocoding/regionalKey/](https://www.dcat-ap.de/def/politicalGeocoding/regionalKey/).
+- **Display & Priority:** Up to 4 active warnings are shown as individual high-visibility black-and-white cards in a 2×2 grid to the left of the 3-hour forecast, sorted by CAP severity (`Extreme` > `Severe` > `Moderate` > `Minor`) and timestamp. When more than 4 warnings are active, a `+N weitere` (`+N more`) count is shown below the grid.
+
+---
+
 ## Customization
 
 - **UI Language:** In [Station.ino](Station.ino#L41-L47), switch between `#include "lang_gr.h"` (German, default) and `#include "lang.h"` (English).
@@ -86,6 +96,7 @@ Copy the /exec URL into `calendarBridgeUrl`, SHARED_TOKEN into `calendarBridgeTo
 
 - [Station.ino](Station.ino) — Display initialization, layout rendering, Wi-Fi/NTP sync, and deep-sleep management
 - [src/common.h](src/common.h) — OpenWeatherMap `/data/2.5/weather` and `/data/2.5/forecast` HTTP fetch & JSON decoding
+- [src/nina.h](src/nina.h) — NINA `/api31/dashboard/{ARS}.json` HTTP fetch, filtered JSON decoding & severity sorting
 - [src/config.example.h](src/config.example.h) — Configuration template (`src/config.h` is git-ignored)
 - [src/lang.h](src/lang.h) / [src/lang_gr.h](src/lang_gr.h) — English and German UI translations
 - [src/epaper_fonts.h](src/epaper_fonts.h) — Custom font definitions

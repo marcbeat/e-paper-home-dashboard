@@ -119,6 +119,7 @@ bool DecodeOneCallWeather(WiFiClient& json, bool print);
 #include "common.h"
 #include "calendar.h"
 #include "fuel.h"
+#include "travel.h"
 #include <rom/rtc.h>
 #include "soc/soc.h"
 #include "soc/rtc_cntl_reg.h"
@@ -137,6 +138,7 @@ CalendarEvent cal2Events[MAX_CALENDAR_EVENTS];
 int cal1EventCount = 0;
 int cal2EventCount = 0;
 FuelStationData fuelStations[MAX_FUEL_STATIONS];
+TravelRouteData travelRoutes[MAX_TRAVEL_DESTS];
 
 long SleepDuration = 30; // Sleep time in minutes, aligned to the nearest minute boundary, so if 30 will always update at 00 or 30 past the hour
 int  WakeupTime    = 7;  // Don't wakeup until after 07:00 to save battery power
@@ -182,6 +184,11 @@ void setup() {
             RxFuel = ReceiveFuelPrices(true);
           }
           if (!RxFuel) AddToEventLog("*** Failed to Rx Fuel prices ***");
+        }
+        if (HasConfiguredTravelDests()) {
+          if (!ReceiveTravelTimes(true)) {
+            AddToEventLog("*** Failed to Rx Travel times ***");
+          }
         }
         StopWiFi(); // Reduces power consumption
         DisplayWeather();

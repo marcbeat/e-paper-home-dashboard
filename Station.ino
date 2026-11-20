@@ -94,7 +94,7 @@ U8G2_FOR_ADAFRUIT_GFX u8g2Fonts;  // Select u8g2 font from here: https://github.
 #ifndef BUILD_GIT_SHA
 #define BUILD_GIT_SHA "unknown"
 #endif
-String version = "1.11";    // Programme version, see change log at end
+String version = "1.12";    // Programme version, see change log at end
 //################ VARIABLES ##################################################
 
 const uint8_t SmallIcon  = 0;
@@ -480,19 +480,43 @@ void DisplayPressureSection(int x, int y, int pwidth, int pdepth, float pressure
 }
 //#########################################################################################
 void DisplayPrecipitationSection(int x, int y, int pwidth, int pdepth) {
-  int dx = (pwidth - 181) / 2, dy = (pdepth - 170) / 2; // content was designed for a 181x170 box
-  display.drawRect(x - 48, y, pwidth, pdepth, GxEPD_BLACK); // precipitation outline
+  const int cardX = x - 48;
+  const int cardCenterX = cardX + pwidth / 2;
+  display.drawRect(cardX, y, pwidth, pdepth, GxEPD_BLACK); // precipitation outline
+
   u8g2Fonts.setFont(u8g2_font_helvB14_tf);
-  drawString(x + 10 + dx, y + 20, TXT_PRECIPITATION_SOON, CENTER);
-  u8g2Fonts.setFont(u8g2_font_helvB14_tf);
-  if (WxForecast[1].Rainfall >= 0.005) { // Ignore small amounts
-    drawString(x - 15 + dx, y + 80 + dy, String(WxForecast[1].Rainfall, 2) + (Units == "M" ? "mm" : "in"), LEFT); // Only display rainfall total today if > 0
-    addraindrop(x + 70 + dx, y + 80 + dy, 7);
+  DrawCenteredText(cardCenterX, y + 28, TXT_PRECIPITATION_SOON);
+
+  // Use the next 3-hour forecast slot (WxForecast[1]) with explicit 0%/0.00 fallback
+  const float popPct = (WxForecast[1].PoP >= 0.005f) ? WxForecast[1].PoP * 100.0f : 0.0f;
+  u8g2Fonts.setFont(u8g2_font_fub35_tf);
+  DrawCenteredText(cardCenterX, y + 94, String(popPct, 0) + "%");
+
+  const String unitLabel = (Units == "M") ? "mm" : "in";
+  const bool hasRain = (WxForecast[1].Rainfall >= 0.005f);
+  const bool hasSnow = (WxForecast[1].Snowfall >= 0.005f);
+  if (hasRain && hasSnow) {
+    u8g2Fonts.setFont(u8g2_font_helvB14_tf);
+    String amountText = String(WxForecast[1].Rainfall, 2) + " / " + String(WxForecast[1].Snowfall, 2) + " " + unitLabel + "*";
+    DrawCenteredText(cardCenterX, y + 132, amountText);
+  } else if (hasRain) {
+    u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+    String amountText = String(WxForecast[1].Rainfall, 2) + " " + unitLabel;
+    int textW = u8g2Fonts.getUTF8Width(amountText.c_str());
+    int startX = cardCenterX - (textW + 22) / 2;
+    u8g2Fonts.setCursor(startX, y + 132);
+    u8g2Fonts.print(amountText);
+    addraindrop(startX + textW + 10, y + 125, 7);
+  } else if (hasSnow) {
+    u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+    DrawCenteredText(cardCenterX, y + 132, String(WxForecast[1].Snowfall, 2) + " " + unitLabel + " *");
+  } else {
+    u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+    DrawCenteredText(cardCenterX, y + 132, "0.00 " + unitLabel);
   }
-  if (WxForecast[1].Snowfall >= 0.005)  // Ignore small amounts
-    drawString(x - 15 + dx, y + 110 + dy, String(WxForecast[1].Snowfall, 2) + (Units == "M" ? "mm" : "in") + " **", LEFT); // Only display snowfall total today if > 0
-  if (WxForecast[1].PoP >= 0.005)       // Ignore small amounts
-    drawString(x + 2 + dx, y + 120 + dy, String(WxForecast[1].PoP*100, 0) + "%", LEFT); // Only display pop if > 0
+
+  u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+  DrawCenteredText(cardCenterX, y + 168, TXT_PRECIP_WINDOW);
 }
 //#########################################################################################
 void DisplayAstronomySection(int x, int y) {
@@ -1487,4 +1511,7 @@ void VerboseRecordOfResetReason(RESET_REASON reason) {
 
   Version 1.11
   1. Integrated display of the title at the top of the screen alongside the city name
+
+  Version 1.12
+  1. Show 0% / 0.00 mm fallback and 3-hour window label in the precipitation card
 */

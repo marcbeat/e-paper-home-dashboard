@@ -23,6 +23,7 @@ const String TXT_RAINFALL_IN = "Rainfall (in)";
 const String TXT_SNOWFALL_MM = "Snowfall (mm)";
 const String TXT_SNOWFALL_IN = "Snowfall (in)";
 const String TXT_PRECIPITATION_SOON = "Prec.";
+const String TXT_PRECIP_WINDOW      = "Next 3 hrs";
 
 
 //Sun
